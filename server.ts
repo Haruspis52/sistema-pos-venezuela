@@ -6,6 +6,7 @@ import { exec } from "child_process";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import JSZip from "jszip";
 import { GoogleGenAI, Type } from "@google/genai";
 import { APP_VERSION, RELEASE_DATE, CURRENT_VERSION_INFO, DEFAULT_GITHUB_REPO } from "./src/version.ts";
 
@@ -196,26 +197,146 @@ async function startServer() {
     }
   });
 
-  // Apply Git update command on host machine
-  app.post("/api/system/apply-git-update", (_req, res) => {
-    // Ejecutar git pull origin main
-    exec("git pull origin main && npm run build", { timeout: 60000 }, (error, stdout, stderr) => {
-      if (error) {
+  // Apply update on host machine (Dual engine: Git if available, or direct GitHub ZIP extraction if Git is not installed)
+  app.post("/api/system/apply-git-update", async (req, res) => {
+    let rawRepo = (req.body?.repo as string) || (req.query?.repo as string) || DEFAULT_GITHUB_REPO;
+    if (!rawRepo || rawRepo.includes("brayangp2435")) {
+      rawRepo = "Haruspis52/sistema-pos-venezuela";
+    }
+    const cleanRepo = rawRepo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/^\/+|\/+$/g, "") || "Haruspis52/sistema-pos-venezuela";
+
+    // 1. Si git está instalado y funcional en el sistema operativo
+    const hasGitCommand = await new Promise<boolean>((resolve) => {
+      exec("git --version", { timeout: 2000 }, (err) => resolve(!err));
+    });
+
+    const hasGitFolder = fs.existsSync(path.join(process.cwd(), ".git"));
+
+    if (hasGitCommand && hasGitFolder) {
+      try {
+        const gitResult = await new Promise<{ success: boolean; output: string }>((resolve) => {
+          exec("git pull origin main && npm run build", { timeout: 15000 }, (error, stdout, stderr) => {
+            if (error) {
+              resolve({ success: false, output: stderr || stdout });
+            } else {
+              resolve({ success: true, output: stdout });
+            }
+          });
+        });
+
+        if (gitResult.success) {
+          return res.json({
+            success: true,
+            method: "git",
+            message: "¡Actualización descargada y compilada con éxito usando Git!",
+            output: gitResult.output,
+          });
+        }
+        console.warn("Git pull falló. Pasando a descarga directa ZIP desde GitHub...");
+      } catch (err: any) {
+        console.warn("Error ejecutando Git:", err?.message);
+      }
+    }
+
+    // 2. Método Universal: Descarga directa del ZIP desde GitHub (No requiere tener Git instalado)
+    try {
+      const candidateUrls = [
+        `https://codeload.github.com/${cleanRepo}/zip/refs/heads/main`,
+        `https://github.com/${cleanRepo}/archive/refs/heads/main.zip`,
+        `https://codeload.github.com/${cleanRepo}/zip/refs/heads/master`,
+        `https://github.com/${cleanRepo}/archive/refs/heads/master.zip`,
+      ];
+
+      let zipRes: Response | null = null;
+      let usedUrl = "";
+
+      for (const url of candidateUrls) {
+        try {
+          console.log(`Intentando descargar paquete de actualización: ${url}`);
+          const r = await fetch(url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) POS-Updater",
+              "Accept": "application/zip, application/octet-stream, */*",
+            },
+            redirect: "follow",
+          });
+          if (r.ok) {
+            zipRes = r;
+            usedUrl = url;
+            break;
+          }
+        } catch (fetchErr: any) {
+          console.warn(`Intento con ${url} falló:`, fetchErr?.message);
+        }
+      }
+
+      if (!zipRes || !zipRes.ok) {
         return res.json({
           success: false,
-          message: "No se pudo ejecutar la actualización automática de Git.",
-          error: error.message,
-          output: stderr || stdout,
-          manualInstruction: "Puedes actualizar manualmente ejecutando: scripts\\actualizar_sistema.bat",
+          message: `No se pudo descargar el paquete ZIP desde GitHub para '${cleanRepo}'.`,
+          manualInstruction: `Descarga el ZIP manualmente desde: https://github.com/${cleanRepo}`,
         });
+      }
+
+      const arrayBuffer = await zipRes.arrayBuffer();
+      const zip = await JSZip.loadAsync(Buffer.from(arrayBuffer));
+
+      // En los ZIPs de GitHub, los archivos vienen dentro de una carpeta raíz (ej: "sistema-pos-venezuela-main/")
+      const rootFolder = Object.keys(zip.files).find((f) => f.endsWith("/") && f.split("/").length === 2) || "";
+      const basePrefix = rootFolder;
+
+      let extractedCount = 0;
+      const cwd = process.cwd();
+
+      for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+        if (zipEntry.dir) continue;
+
+        // Quitar el prefijo de la carpeta raíz de GitHub
+        let targetRelative = relativePath;
+        if (basePrefix && targetRelative.startsWith(basePrefix)) {
+          targetRelative = targetRelative.slice(basePrefix.length);
+        }
+        if (!targetRelative) continue;
+
+        // Omitir archivos sensibles o de datos del cliente o el propio script de server
+        if (
+          targetRelative.startsWith(".git") ||
+          targetRelative.startsWith(".env") ||
+          targetRelative.startsWith("node_modules") ||
+          targetRelative === "server.ts" ||
+          targetRelative.endsWith(".sqlite") ||
+          targetRelative.endsWith(".db")
+        ) {
+          continue;
+        }
+
+        const targetFullPath = path.join(cwd, targetRelative);
+        const targetDir = path.dirname(targetFullPath);
+
+        if (!fs.existsSync(targetDir)) {
+          fs.mkdirSync(targetDir, { recursive: true });
+        }
+
+        const fileData = await zipEntry.async("nodebuffer");
+        fs.writeFileSync(targetFullPath, fileData);
+        extractedCount++;
       }
 
       return res.json({
         success: true,
-        message: "¡Actualización descargada y compilada con éxito desde GitHub!",
-        output: stdout,
+        method: "direct_zip",
+        message: `¡Actualización aplicada con éxito desde GitHub! (${extractedCount} archivos actualizados sin requerir Git).`,
+        output: `Se actualizaron ${extractedCount} archivos del sistema directamente desde ${cleanRepo}/main (vía ${usedUrl || "GitHub ZIP"}).`,
       });
-    });
+    } catch (zipError: any) {
+      console.error("Error al procesar actualización directa ZIP:", zipError);
+      return res.json({
+        success: false,
+        message: "Fallo al procesar la actualización directa ZIP.",
+        error: zipError?.message,
+        manualInstruction: "Puedes descargar los archivos directamente desde GitHub y reemplazarlos en la carpeta.",
+      });
+    }
   });
 
   // Real-time BCV exchange rates endpoint

@@ -1,6 +1,8 @@
-export const APP_VERSION = "2.5.0";
-export const RELEASE_DATE = "2026-10-02";
-export const DEFAULT_GITHUB_REPO = "brayangp2435/pos-bodega-fiscal";
+import packageJson from "../package.json";
+
+export const APP_VERSION = packageJson.version || "2.5.1";
+export const RELEASE_DATE = "2026-10-03";
+export const DEFAULT_GITHUB_REPO = "Haruspis52/sistema-pos-venezuela";
 
 export interface VersionInfo {
   version: string;
