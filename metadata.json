@@ -1,0 +1,6 @@
+{
+  "name": "Sistema de Inventario Python CustomTkinter & Gemini",
+  "description": "Sistema de inventario y facturación fiscal adaptado a la normativa venezolana (SENIAT Providencia 00071, LISLR Art. 177 Costo Promedio Ponderado PMP, IGTF 3% y doble moneda USD/VES con tasa oficial BCV) con Python, CustomTkinter, SQLite y Gemini AI.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

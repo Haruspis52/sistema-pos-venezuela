@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* Estilos de Scrollbar Globales y para Ventanas Emergentes (Modales) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 8px;
+  border: 2px solid rgba(15, 23, 42, 0.6);
+  transition: background 0.2s ease-in-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: #f59e0b;
+}
+
+/* Soporte para Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 rgba(15, 23, 42, 0.6);
+}
+
+/* Habilitar scroll suave en móviles y contenedores scrollables */
+.overflow-y-auto, .overflow-y-scroll, .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+

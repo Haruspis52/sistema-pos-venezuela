@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Sistema POS & Facturación Venezuela",
+  "short_name": "POS Venezuela",
+  "description": "Sistema de Inventario, Punto de Venta y Facturación Fiscal para Comercios en Venezuela (SENIAT / Node.js).",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#121417",
+  "theme_color": "#121417",
+  "icons": [
+    {
+      "src": "/app_icon.jpg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}
