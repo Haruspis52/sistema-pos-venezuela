@@ -7,6 +7,8 @@ import {
 import {
   getStoredNegocioConfig,
   saveStoredNegocioConfig,
+  verifyAdminPin,
+  resetEntireApplication,
 } from "../mockDb";
 import {
   Building2,
@@ -22,6 +24,11 @@ import {
   Sparkles,
   Save,
   MessageCircle,
+  Trash2,
+  AlertTriangle,
+  ShieldAlert,
+  KeyRound,
+  Lock,
 } from "lucide-react";
 
 interface ClientConfigModalProps {
@@ -42,14 +49,46 @@ export const ClientConfigModal: React.FC<ClientConfigModalProps> = ({
   const [config, setConfig] = useState<NegocioClienteConfig>(() =>
     getStoredNegocioConfig()
   );
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setConfig(getStoredNegocioConfig());
+      setShowResetDialog(false);
+      setAdminPinInput("");
+      setResetError("");
+      setIsResetting(false);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleConfirmReset = (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError("");
+
+    if (!adminPinInput.trim()) {
+      setResetError("Por favor ingrese el PIN de Administrador.");
+      return;
+    }
+
+    const isValid = verifyAdminPin(adminPinInput.trim());
+    if (!isValid) {
+      setResetError("❌ PIN de Administrador incorrecto. Operación rechazada.");
+      return;
+    }
+
+    setIsResetting(true);
+    showToast("🧹 Limpiando aplicación y restableciendo datos a estado de fábrica...");
+
+    setTimeout(() => {
+      resetEntireApplication();
+      window.location.reload();
+    }, 1200);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,6 +350,38 @@ export const ClientConfigModal: React.FC<ClientConfigModalProps> = ({
               </div>
             </div>
 
+            {/* Zona de Mantenimiento y Peligro: Restablecer / Limpiar App */}
+            <div className="p-3.5 rounded-xl bg-rose-950/20 border border-rose-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400 mt-0.5 shrink-0">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                    <span>Restablecimiento Total de Fábrica</span>
+                    <span className="text-[10px] bg-rose-900/60 text-rose-300 px-1.5 py-0.5 rounded border border-rose-700/50 font-mono">
+                      Requiere PIN Admin
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                    Borra todas las ventas, productos, fiados y configuraciones locales para reiniciar la app a cero.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResetDialog(true);
+                  setAdminPinInput("");
+                  setResetError("");
+                }}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-700/60 hover:border-rose-500 flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-sm hover:shadow-rose-950/50"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>Limpiar App por Completo</span>
+              </button>
+            </div>
+
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -429,6 +500,99 @@ export const ClientConfigModal: React.FC<ClientConfigModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* DIÁLOGO DE SEGURIDAD PARA LIMPIEZA TOTAL CON PIN ADMIN */}
+      {showResetDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-[#15171e] border-2 border-rose-600/70 rounded-2xl w-full max-w-md shadow-2xl p-6 text-slate-100 relative overflow-hidden">
+            {/* Cabecera de advertencia */}
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-3 rounded-xl bg-rose-600/20 text-rose-400 border border-rose-500/30 shrink-0">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>¿Limpiar Aplicación por Completo?</span>
+                </h3>
+                <p className="text-xs text-rose-300/90 font-medium mt-0.5">
+                  Esta acción es irreversible y restablecerá la app a estado de fábrica.
+                </p>
+              </div>
+            </div>
+
+            {/* Lista de advertencia */}
+            <div className="bg-rose-950/30 rounded-xl p-3 border border-rose-900/40 text-[11.5px] text-slate-300 space-y-1 mb-4">
+              <div className="flex items-center gap-1.5 text-rose-300 font-semibold text-xs mb-1">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Se eliminarán permanentemente de este equipo:</span>
+              </div>
+              <p>• Catálogo completo de productos e inventario</p>
+              <p>• Historial de ventas, facturas emitidas y tickets</p>
+              <p>• Libreta de fiados y clientes</p>
+              <p>• Reportes de cierre de caja (Z y X)</p>
+              <p>• Nombre comercial y personalización del negocio</p>
+              <div className="pt-1.5 text-[11px] text-slate-400 italic border-t border-rose-900/30">
+                Al terminar, el sistema volverá al asistente inicial de bienvenida como recién instalado.
+              </div>
+            </div>
+
+            {/* Formulario de PIN del Administrador */}
+            <form onSubmit={handleConfirmReset} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-rose-400" />
+                    <span>PIN de Administrador Requerido:</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    (PIN del dueño / admin)
+                  </span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    autoFocus
+                    maxLength={16}
+                    value={adminPinInput}
+                    onChange={(e) => {
+                      setAdminPinInput(e.target.value);
+                      setResetError("");
+                    }}
+                    placeholder="Ingrese su PIN de Admin (ej. 1234)"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 text-white text-sm tracking-widest font-mono text-center outline-none transition-all placeholder:tracking-normal placeholder:font-sans placeholder:text-slate-500"
+                    disabled={isResetting}
+                  />
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3 pointer-events-none" />
+                </div>
+                {resetError && (
+                  <p className="text-xs text-rose-400 font-medium mt-1.5 text-center">
+                    {resetError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetDialog(false)}
+                  disabled={isResetting}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResetting || !adminPinInput.trim()}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{isResetting ? "Limpiando..." : "Confirmar y Limpiar Todo"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
