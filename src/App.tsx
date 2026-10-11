@@ -55,6 +55,11 @@ import {
   saveStoredInitialSetupDone,
   parseFlexibleDate,
 } from "./mockDb";
+import { testFirestoreConnection } from "./firebase";
+import {
+  fetchRemoteLicenseFromFirestore,
+  saveLicenseToFirestore,
+} from "./services/licenseService";
 import { EditionSelectorModal } from "./components/EditionSelectorModal";
 import { InitialPosModeModal } from "./components/InitialPosModeModal";
 import { UserManagementModal } from "./components/UserManagementModal";
@@ -417,6 +422,49 @@ export function App() {
   };
 
   const handleRetryVerification = async (): Promise<{ success: boolean; message: string }> => {
+    // 1. Prioridad: Consulta instantánea a Firebase Firestore (< 50ms)
+    try {
+      const fsResult = await fetchRemoteLicenseFromFirestore(clientLicense.cliente_id);
+      if (fsResult.success && fsResult.found && fsResult.license) {
+        const fsLic = fsResult.license;
+        const isActivo = fsLic.estado_remoto === "ACTIVO";
+        const newExpDate = fsLic.fecha_vencimiento_actual;
+        const now = new Date();
+        const exp = parseFlexibleDate(newExpDate);
+        const isExpired = !exp || exp.getTime() - now.getTime() < 0;
+
+        const updated: RemoteClientLicense = {
+          ...clientLicense,
+          ...fsLic,
+          ultimo_contacto_servidor: new Date().toISOString(),
+        };
+
+        setClientLicense(updated);
+        saveRemoteLicense(updated);
+
+        if (isActivo && !isExpired) {
+          showToast(`¡Licencia verificada en Firebase Firestore! Sistema activo para ${updated.nombre_negocio}.`);
+          return {
+            success: true,
+            message: `¡Estado ACTIVO confirmado en Firebase Firestore! Vence: ${newExpDate}. Desbloqueando...`,
+          };
+        } else if (fsLic.estado_remoto === "SUSPENDIDO") {
+          return {
+            success: false,
+            message: `El cliente ${fsLic.cliente_id} figura como SUSPENDIDO en Firebase. Por favor reporte su comprobante.`,
+          };
+        } else if (isExpired) {
+          return {
+            success: false,
+            message: `La fecha en Firebase (${newExpDate}) ya venció. Por favor extienda el mes en Firebase.`,
+          };
+        }
+      }
+    } catch (fsErr) {
+      console.warn("Fallo temporal consultando Firebase:", fsErr);
+    }
+
+    // 2. Respaldo: Google Sheets
     try {
       const res = await fetch(`/api/license/sync?clienteId=${encodeURIComponent(clientLicense.cliente_id)}`);
       if (res.ok) {
@@ -441,9 +489,11 @@ export function App() {
 
           setClientLicense(updated);
           saveRemoteLicense(updated);
+          // Auto-migrar a Firebase Firestore
+          saveLicenseToFirestore(updated).catch(() => {});
 
           if (isActivo && !isExpired) {
-            showToast(`¡Pago verificado en Google Sheets! Sistema reactivado para ${updated.nombre_negocio}.`);
+            showToast(`¡Pago verificado! Sistema reactivado para ${updated.nombre_negocio}.`);
             return {
               success: true,
               message: `¡Estado ACTIVO confirmado en Google Sheets! Fecha: ${newExpDate}. Desbloqueando...`,
@@ -456,14 +506,9 @@ export function App() {
           } else if (isExpired) {
             return {
               success: false,
-              message: `La fecha registrada (${newExpDate}) ya venció. Por favor extienda la fecha en Google Sheets.`,
+              message: `La fecha registrada (${newExpDate}) ya venció. Por favor extienda la fecha.`,
             };
           }
-        } else {
-          return {
-            success: false,
-            message: `El ID '${clientLicense.cliente_id}' no fue encontrado en Google Sheets. Verifique la fila.`,
-          };
         }
       }
     } catch (err: any) {

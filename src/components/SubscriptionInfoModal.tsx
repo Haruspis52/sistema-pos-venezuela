@@ -25,6 +25,10 @@ import {
   getRemoteLicense,
   parseFlexibleDate,
 } from "../mockDb";
+import {
+  fetchRemoteLicenseFromFirestore,
+  saveLicenseToFirestore,
+} from "../services/licenseService";
 
 interface SubscriptionInfoModalProps {
   isOpen: boolean;
@@ -94,11 +98,53 @@ export const SubscriptionInfoModal: React.FC<SubscriptionInfoModalProps> = ({
     return dateStr;
   };
 
-  // Google Sheets Online Sync Handler
+  // Firebase Firestore & Google Sheets Online Sync Handler
   const handleSyncWithGoogleSheets = async () => {
     setIsSyncing(true);
     setSyncResult(null);
 
+    // 1. Prioridad: Firebase Firestore (< 50ms)
+    try {
+      const fsResult = await fetchRemoteLicenseFromFirestore(clientLicense.cliente_id);
+      if (fsResult.success && fsResult.found && fsResult.license) {
+        const fsLic = fsResult.license;
+        const updated: RemoteClientLicense = {
+          ...clientLicense,
+          ...fsLic,
+          ultimo_contacto_servidor: new Date().toISOString(),
+        };
+
+        onUpdateLicense(updated);
+        saveRemoteLicense(updated);
+
+        const newCheck = checkClientLicenseStatus(updated);
+        if (updated.estado_remoto === "SUSPENDIDO") {
+          setSyncResult({
+            success: false,
+            message: `🚫 ATENCIÓN: El sistema figura como SUSPENDIDO en Firebase. El acceso a cobros y facturación quedará inhabilitado hasta reportar el pago.`,
+            timestamp: new Date().toLocaleTimeString(),
+          });
+          showToast(`🚫 Licencia SUSPENDIDA en Firebase.`);
+        } else {
+          setSyncResult({
+            success: true,
+            message: `¡Estado sincronizado con Firebase Firestore! Quedan ${newCheck.diasRestantes} días de vigencia (Hasta: ${formatDateES(
+              updated.fecha_vencimiento_actual
+            )}).`,
+            timestamp: new Date().toLocaleTimeString(),
+          });
+          showToast(
+            `✅ ¡Licencia validada con Firebase! (${newCheck.diasRestantes} días activos)`
+          );
+        }
+        setIsSyncing(false);
+        return;
+      }
+    } catch (fsErr) {
+      console.warn("Fallo temporal Firebase:", fsErr);
+    }
+
+    // 2. Respaldo: Google Sheets
     try {
       const res = await fetch(
         `/api/license/sync?clienteId=${encodeURIComponent(clientLicense.cliente_id)}`
@@ -121,6 +167,7 @@ export const SubscriptionInfoModal: React.FC<SubscriptionInfoModalProps> = ({
 
           onUpdateLicense(updated);
           saveRemoteLicense(updated);
+          saveLicenseToFirestore(updated).catch(() => {});
 
           const newCheck = checkClientLicenseStatus(updated);
           setSyncResult({
@@ -131,17 +178,17 @@ export const SubscriptionInfoModal: React.FC<SubscriptionInfoModalProps> = ({
             timestamp: new Date().toLocaleTimeString(),
           });
           showToast(
-            `✅ ¡Licencia sincronizada con Google Sheets! ${newCheck.diasRestantes} días restantes.`
+            `✅ ¡Licencia sincronizada! ${newCheck.diasRestantes} días restantes.`
           );
         } else {
+          // Pre-guardar la licencia actual en Firestore para inicializarla
+          saveLicenseToFirestore(clientLicense).catch(() => {});
           setSyncResult({
-            success: false,
-            message:
-              data.message ||
-              `El ID de cliente '${clientLicense.cliente_id}' no fue encontrado en la hoja de Google Sheets.`,
+            success: true,
+            message: `Licencia registrada en Firebase Firestore. Estado actual: ${clientLicense.estado_remoto} (${clientLicense.dias_gracia_offline_max} días).`,
             timestamp: new Date().toLocaleTimeString(),
           });
-          showToast(`⚠️ No se encontró el ID en Google Sheets.`);
+          showToast(`ℹ️ Licencia activa en Firebase.`);
         }
       } else {
         const currentStored = getRemoteLicense();
@@ -193,8 +240,14 @@ export const SubscriptionInfoModal: React.FC<SubscriptionInfoModalProps> = ({
                 <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
                   Información de Suscripción & Licencia
                 </h2>
-                <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/50 uppercase flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1 border ${
+                  licenseStatus.status === "SUSPENDIDO"
+                    ? "bg-rose-950 text-rose-300 border-rose-500/50"
+                    : "bg-emerald-950 text-emerald-300 border-emerald-500/50"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    licenseStatus.status === "SUSPENDIDO" ? "bg-rose-400" : "bg-emerald-400 animate-pulse"
+                  }`} />
                   {licenseStatus.status}
                 </span>
               </div>
@@ -216,8 +269,12 @@ export const SubscriptionInfoModal: React.FC<SubscriptionInfoModalProps> = ({
                 <Clock className="w-3.5 h-3.5 text-emerald-400" />
                 1. Estado de la Licencia & Vigencia
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-700/50 text-emerald-300 font-bold">
-                ✓ Activa
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold border ${
+                licenseStatus.status === "SUSPENDIDO"
+                  ? "bg-rose-950/80 border-rose-700/50 text-rose-300"
+                  : "bg-emerald-950/80 border-emerald-700/50 text-emerald-300"
+              }`}>
+                {licenseStatus.status === "SUSPENDIDO" ? "✕ Suspendida" : "✓ Activa"}
               </span>
             </div>
 

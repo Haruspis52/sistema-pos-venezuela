@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "License": {
+      "title": "License",
+      "description": "Subscription license and cut-off status for client POS instances",
+      "type": "object",
+      "properties": {
+        "cliente_id": {
+          "type": "string",
+          "description": "Unique client license identifier, e.g. BDG-2026-9482"
+        },
+        "nombre_negocio": {
+          "type": "string",
+          "description": "Commercial trade name of the client store"
+        },
+        "rif_cedula": {
+          "type": "string",
+          "description": "Tax ID or RIF of the store"
+        },
+        "telefono_contacto": {
+          "type": "string",
+          "description": "Contact phone number for payment notifications"
+        },
+        "edicion_contratada": {
+          "type": "string",
+          "enum": ["bodega", "fiscal"],
+          "description": "Edition contracted: bodega ($15) or fiscal ($30)"
+        },
+        "cuota_mensual_usd": {
+          "type": "number",
+          "description": "Monthly subscription fee in USD"
+        },
+        "monto_instalacion_usd": {
+          "type": "number",
+          "description": "Initial installation fee in USD"
+        },
+        "fecha_instalacion": {
+          "type": "string",
+          "description": "Date of initial setup, YYYY-MM-DD"
+        },
+        "fecha_vencimiento_actual": {
+          "type": "string",
+          "description": "Current subscription expiration date, YYYY-MM-DD"
+        },
+        "estado_remoto": {
+          "type": "string",
+          "enum": ["ACTIVO", "SUSPENDIDO"],
+          "description": "Remote subscription status: ACTIVO or SUSPENDIDO"
+        },
+        "ultimo_contacto": {
+          "type": "string",
+          "description": "Timestamp of last ping from client POS"
+        },
+        "notas": {
+          "type": "string",
+          "description": "Internal notes regarding payment or reseller"
+        }
+      },
+      "required": [
+        "cliente_id",
+        "nombre_negocio",
+        "edicion_contratada",
+        "fecha_vencimiento_actual",
+        "estado_remoto"
+      ]
+    }
+  },
+  "firestore": {
+    "/licenses/{licenseId}": {
+      "schema": "License",
+      "description": "Stores remote licenses and subscription cut-off dates for POS clients"
+    }
+  }
+}
