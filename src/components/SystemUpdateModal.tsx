@@ -126,7 +126,7 @@ export const SystemUpdateModal: React.FC<SystemUpdateModalProps> = ({
   const copyBatScript = (type: "actualizar" | "iniciar") => {
     const text =
       type === "actualizar"
-        ? `@echo off\nchcp 65001 > nul\ntitle Actualizador POS\ncolor 0A\necho Descargando actualizaciones de GitHub...\ngit pull origin main\necho Compilando aplicacion...\ncall npm run build\necho Actualizacion completada.\npause`
+        ? `@echo off\nchcp 65001 > nul\ntitle Actualizador POS\ncolor 0A\necho [1/3] Descargando actualizaciones de GitHub...\ngit pull origin main\necho [2/3] Instalando dependencias y librerias nuevas...\ncall npm install --no-audit --no-fund\necho [3/3] Compilando aplicacion...\ncall npm run build\necho Actualizacion completada con exito.\npause`
         : `@echo off\nchcp 65001 > nul\ntitle Sistema POS\ncolor 0B\ncd /d "%~dp0.."\nstart "" cmd /c "timeout /t 3 >nul && start http://localhost:3000"\nnpm run dev`;
 
     if (navigator?.clipboard) {

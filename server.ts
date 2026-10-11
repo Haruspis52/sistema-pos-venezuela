@@ -215,7 +215,7 @@ async function startServer() {
     if (hasGitCommand && hasGitFolder) {
       try {
         const gitResult = await new Promise<{ success: boolean; output: string }>((resolve) => {
-          exec("git pull origin main && npm run build", { timeout: 15000 }, (error, stdout, stderr) => {
+          exec("git pull origin main && npm install --no-audit --no-fund && npm run build", { timeout: 60000 }, (error, stdout, stderr) => {
             if (error) {
               resolve({ success: false, output: stderr || stdout });
             } else {
@@ -320,6 +320,15 @@ async function startServer() {
         const fileData = await zipEntry.async("nodebuffer");
         fs.writeFileSync(targetFullPath, fileData);
         extractedCount++;
+      }
+
+      // Asegurar que cualquier dependencia nueva añadida en package.json (como firebase) se instale
+      try {
+        await new Promise<void>((resolve) => {
+          exec("npm install --no-audit --no-fund", { timeout: 45000 }, () => resolve());
+        });
+      } catch (npmErr) {
+        console.warn("npm install tras actualización ZIP:", npmErr);
       }
 
       return res.json({
