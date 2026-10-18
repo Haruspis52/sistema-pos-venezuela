@@ -522,6 +522,7 @@ export const SubscriptionInfoModal: React.FC<SubscriptionInfoModalProps> = ({
               {clientLicense.cliente_id}
             </span>
           </div>
+
           <button
             onClick={onClose}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl transition cursor-pointer"

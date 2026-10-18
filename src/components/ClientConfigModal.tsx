@@ -9,7 +9,9 @@ import {
   saveStoredNegocioConfig,
   verifyAdminPin,
   resetEntireApplication,
+  getRemoteLicense,
 } from "../mockDb";
+import { autoRegisterBusinessInFirestore } from "../services/licenseService";
 import {
   Building2,
   Store,
@@ -103,6 +105,21 @@ export const ClientConfigModal: React.FC<ClientConfigModalProps> = ({
 
     saveStoredNegocioConfig(config);
     onSaved(config);
+
+    // Sincronizar datos comerciales a Firebase Firestore (sin direccion_fiscal)
+    const lic = getRemoteLicense();
+    if (lic && lic.cliente_id) {
+      autoRegisterBusinessInFirestore({
+        clienteId: lic.cliente_id,
+        nombreNegocio: config.nombreComercial,
+        rifCedula: config.rif,
+        telefonoContacto: config.telefono,
+        edicionContratada: lic.edicion_contratada || "bodega",
+      }).catch((err) => {
+        console.warn("[ClientConfigModal] Error sincronizando a Firebase:", err);
+      });
+    }
+
     showToast(`✅ Datos del negocio "${config.nombreComercial}" guardados correctamente.`);
     onClose();
   };

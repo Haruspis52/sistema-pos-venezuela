@@ -33,6 +33,7 @@ import {
   Barcode,
   History as HistoryIcon,
   FileDown,
+  ArrowUpDown,
   Eye,
   X,
   Check,
@@ -204,9 +205,14 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
     return ["TODAS", ...Array.from(set)];
   }, [products]);
 
-  // Filter products
+  // Sort order in Bodega Mostrador
+  const [bodegaSort, setBodegaSort] = useState<
+    "nombre_asc" | "nombre_desc" | "stock_desc" | "stock_asc" | "precio_desc" | "precio_asc"
+  >("nombre_asc");
+
+  // Filter & Sort products
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    const list = products.filter((p) => {
       const matchCat =
         selectedCategory === "TODAS" ||
         p.categoria_nombre === selectedCategory;
@@ -217,7 +223,26 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
         p.codigo_barras.includes(q);
       return matchCat && matchQuery;
     });
-  }, [products, selectedCategory, searchProduct]);
+
+    return [...list].sort((a, b) => {
+      switch (bodegaSort) {
+        case "nombre_asc":
+          return a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
+        case "nombre_desc":
+          return b.nombre.localeCompare(a.nombre, "es", { sensitivity: "base" });
+        case "stock_desc":
+          return b.stock_actual - a.stock_actual;
+        case "stock_asc":
+          return a.stock_actual - b.stock_actual;
+        case "precio_desc":
+          return b.precio_venta - a.precio_venta;
+        case "precio_asc":
+          return a.precio_venta - b.precio_venta;
+        default:
+          return 0;
+      }
+    });
+  }, [products, selectedCategory, searchProduct, bodegaSort]);
 
   // Cart Calculations
   const cartTotalUsd = useMemo(() => {
@@ -1107,31 +1132,51 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
               </div>
             )}
 
-            {/* Category Quick Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {categoriesList.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
-                    selectedCategory === cat
-                      ? "bg-amber-500 text-slate-950 font-bold"
-                      : "bg-[#14161f] text-slate-400 hover:text-white border border-slate-800"
-                  }`}
+            {/* Category Quick Chips & Sort Selector */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none flex-1">
+                {categoriesList.map((cat, idx) => (
+                  <button
+                    key={`cat-btn-${cat}-${idx}`}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
+                      selectedCategory === cat
+                        ? "bg-amber-500 text-slate-950 font-bold"
+                        : "bg-[#14161f] text-slate-400 hover:text-white border border-slate-800"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sort Pill */}
+              <div className="shrink-0 flex items-center gap-1.5 bg-[#14161f] border border-slate-800 rounded-xl px-2.5 py-1 text-slate-300">
+                <ArrowUpDown className="w-3 h-3 text-amber-400 shrink-0" />
+                <select
+                  value={bodegaSort}
+                  onChange={(e) => setBodegaSort(e.target.value as any)}
+                  className="bg-transparent text-[11px] font-semibold text-slate-200 focus:outline-none cursor-pointer"
+                  title="Ordenar productos en mostrador"
                 >
-                  {cat}
-                </button>
-              ))}
+                  <option value="nombre_asc" className="bg-[#14161f]">🔤 A ➔ Z</option>
+                  <option value="nombre_desc" className="bg-[#14161f]">🔤 Z ➔ A</option>
+                  <option value="stock_desc" className="bg-[#14161f]">📦 + Stock</option>
+                  <option value="stock_asc" className="bg-[#14161f]">⚠️ - Stock</option>
+                  <option value="precio_desc" className="bg-[#14161f]">💰 + Precio</option>
+                  <option value="precio_asc" className="bg-[#14161f]">💵 - Precio</option>
+                </select>
+              </div>
             </div>
 
             {/* Products Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[520px] overflow-y-auto pr-1">
-              {filteredProducts.map((p) => {
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[580px] overflow-y-auto pr-1 overscroll-contain touch-pan-y">
+              {filteredProducts.map((p, idx) => {
                 const priceVes = p.precio_venta * bcvRate;
                 const inCart = cart.find((c) => c.producto.id === p.id);
                 return (
                   <button
-                    key={p.id}
+                    key={`bodega-p-${p.id}-${p.codigo_barras || ""}-${idx}`}
                     onClick={() => handleAddToCart(p)}
                     className={`bg-[#14161f] hover:bg-[#1c202d] border rounded-2xl p-3 text-left transition-all relative flex flex-col justify-between group ${
                       inCart

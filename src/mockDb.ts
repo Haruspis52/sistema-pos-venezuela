@@ -200,6 +200,7 @@ export const INITIAL_CATEGORIES: Categoria[] = [
   { id: 4, nombre: "Lácteos y Derivados", descripcion: "Leches y quesos pasteurizados (Exentos de IVA)" },
   { id: 5, nombre: "Charcutería y Embutidos", descripcion: "Jamones y embutidos (Gravados 16% IVA)" },
   { id: 6, nombre: "Golosinas y Snacks", descripcion: "Snacks, chocolates y galletas (Gravados 16% IVA)" },
+  { id: 7, nombre: "Medicamentos", descripcion: "Fármacos y productos farmacéuticos esenciales" },
 ];
 
 export const INITIAL_PRODUCTS: Producto[] = [
@@ -418,7 +419,25 @@ export function calcularPMP(
 export function getStoredCategories(): Categoria[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CATEGORIES);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const hasMedicamentos = parsed.some(
+          (c: Categoria) => c.nombre.toLowerCase() === "medicamentos"
+        );
+        if (!hasMedicamentos) {
+          const maxId = parsed.reduce((max, c) => Math.max(max, c.id || 0), 0);
+          const medCat: Categoria = {
+            id: maxId + 1,
+            nombre: "Medicamentos",
+            descripcion: "Fármacos y productos farmacéuticos esenciales",
+          };
+          parsed.push(medCat);
+          localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(parsed));
+        }
+        return parsed;
+      }
+    }
   } catch (e) {
     console.error(e);
   }
@@ -426,10 +445,63 @@ export function getStoredCategories(): Categoria[] {
   return INITIAL_CATEGORIES;
 }
 
+export function sanitizeProduct(p: any, fallbackId: number): Producto {
+  const numId = typeof p.id === "number" && !isNaN(p.id) ? p.id : parseInt(String(p.id), 10);
+  const safeId = !isNaN(numId) && numId > 0 ? numId : fallbackId;
+  const precioCosto = typeof p.precio_costo === "number" && !isNaN(p.precio_costo)
+    ? p.precio_costo
+    : parseFloat(String(p.precio_costo ?? 0)) || 0;
+  const precioVenta = typeof p.precio_venta === "number" && !isNaN(p.precio_venta)
+    ? p.precio_venta
+    : parseFloat(String(p.precio_venta ?? 0)) || 0;
+  const stockActual = typeof p.stock_actual === "number" && !isNaN(p.stock_actual)
+    ? p.stock_actual
+    : parseFloat(String(p.stock_actual ?? 0)) || 0;
+  const stockMin = typeof p.stock_minimo === "number" && !isNaN(p.stock_minimo)
+    ? p.stock_minimo
+    : parseFloat(String(p.stock_minimo ?? 5)) || 5;
+  const pmp = typeof p.costo_promedio_ponderado === "number" && !isNaN(p.costo_promedio_ponderado)
+    ? p.costo_promedio_ponderado
+    : (typeof p.costo_promedio === "number" && !isNaN(p.costo_promedio) ? p.costo_promedio : precioCosto);
+
+  return {
+    ...p,
+    id: safeId,
+    codigo_barras: String(p.codigo_barras || "").trim(),
+    nombre: String(p.nombre || "Artículo").trim(),
+    categoria_id: Number(p.categoria_id) || 1,
+    categoria_nombre: p.categoria_nombre || "General",
+    precio_costo: precioCosto,
+    costo_promedio_ponderado: pmp,
+    costo_promedio: pmp,
+    precio_venta: precioVenta,
+    stock_actual: stockActual,
+    stock_minimo: stockMin,
+    unidad_medida: p.unidad_medida || "Pza",
+    alicuota_iva: p.alicuota_iva === 0 ? 0 : 16,
+  };
+}
+
 export function getStoredProducts(): Producto[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PRODUCTS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const usedIds = new Set<number>();
+        let nextSafeId = 1;
+        return parsed.map((item: any, idx: number) => {
+          let clean = sanitizeProduct(item, idx + 1);
+          if (usedIds.has(clean.id)) {
+            while (usedIds.has(nextSafeId)) nextSafeId++;
+            clean = { ...clean, id: nextSafeId };
+            nextSafeId++;
+          }
+          usedIds.add(clean.id);
+          return clean;
+        });
+      }
+    }
   } catch (e) {
     console.error(e);
   }
@@ -962,6 +1034,109 @@ export function saveRemoteLicense(license: RemoteClientLicense): void {
 }
 
 export const STORAGE_KEY_INITIAL_SETUP_DONE = "sqlite_initial_setup_completed_v1";
+export const STORAGE_KEY_REGISTERED_LICENSES = "pos_registered_licenses_catalog_v1";
+
+export interface RegisteredClientLicense {
+  cliente_id: string;
+  nombre_referencia: string;
+  edicion_contratada: "bodega" | "fiscal";
+  cuota_mensual_usd: number;
+  fecha_emision: string;
+  fecha_vencimiento: string;
+  estado: "ACTIVO" | "SUSPENDIDO";
+  notas?: string;
+  activada_en_equipo?: boolean;
+}
+
+export const INITIAL_REGISTERED_LICENSES: RegisteredClientLicense[] = [
+  {
+    cliente_id: "CLI-BOD-1001",
+    nombre_referencia: "Abasto & Víveres La Fe (Ejemplo)",
+    edicion_contratada: "bodega",
+    cuota_mensual_usd: 15,
+    fecha_emision: "2026-01-01",
+    fecha_vencimiento: getDefault30DaysExpiry(),
+    estado: "ACTIVO",
+    notas: "Cliente Bodega estándar - Activación con instalador",
+  },
+  {
+    cliente_id: "CLI-FSC-2001",
+    nombre_referencia: "Distribuidora Caracas 2026, C.A. (Ejemplo)",
+    edicion_contratada: "fiscal",
+    cuota_mensual_usd: 30,
+    fecha_emision: "2026-01-01",
+    fecha_vencimiento: getDefault30DaysExpiry(),
+    estado: "ACTIVO",
+    notas: "Cliente Fiscal SENIAT con Providencia 00071",
+  },
+  {
+    cliente_id: "POS-VE-PRODUCCION",
+    nombre_referencia: "Mi Negocio Comercial, C.A.",
+    edicion_contratada: "bodega",
+    cuota_mensual_usd: 15,
+    fecha_emision: "2026-01-01",
+    fecha_vencimiento: getDefault30DaysExpiry(),
+    estado: "ACTIVO",
+    notas: "Licencia de producción local",
+  },
+  {
+    cliente_id: "CLI-DEMO",
+    nombre_referencia: "Comercio Demostración",
+    edicion_contratada: "bodega",
+    cuota_mensual_usd: 15,
+    fecha_emision: "2026-01-01",
+    fecha_vencimiento: getDefault30DaysExpiry(),
+    estado: "ACTIVO",
+    notas: "Código de prueba para demostraciones",
+  },
+];
+
+export function getStoredRegisteredLicenses(): RegisteredClientLicense[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_REGISTERED_LICENSES);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error(e);
+  }
+  // Inicializar con catálogo por defecto
+  saveStoredRegisteredLicenses(INITIAL_REGISTERED_LICENSES);
+  return INITIAL_REGISTERED_LICENSES;
+}
+
+export function saveStoredRegisteredLicenses(licenses: RegisteredClientLicense[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_REGISTERED_LICENSES, JSON.stringify(licenses));
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+export function registerNewClientLicense(license: RegisteredClientLicense): RegisteredClientLicense[] {
+  const current = getStoredRegisteredLicenses();
+  const existsIdx = current.findIndex(
+    (l) => l.cliente_id.trim().toUpperCase() === license.cliente_id.trim().toUpperCase()
+  );
+  let updated: RegisteredClientLicense[];
+  if (existsIdx >= 0) {
+    updated = [...current];
+    updated[existsIdx] = license;
+  } else {
+    updated = [license, ...current];
+  }
+  saveStoredRegisteredLicenses(updated);
+  return updated;
+}
+
+export function generateNewClientId(edition: "bodega" | "fiscal"): string {
+  const prefix = edition === "fiscal" ? "CLI-FSC" : "CLI-BOD";
+  const randomNum = Math.floor(1000 + Math.random() * 9000);
+  return `${prefix}-${randomNum}`;
+}
 
 export function getStoredInitialSetupDone(): boolean {
   try {

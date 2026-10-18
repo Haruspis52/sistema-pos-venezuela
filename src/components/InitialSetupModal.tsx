@@ -12,14 +12,20 @@ import {
   ArrowRight,
   ShoppingCart,
   Smartphone,
-  Save,
   MessageCircle,
   Lock,
   Eye,
   EyeOff,
   KeyRound,
+  Key,
+  Loader2,
+  AlertTriangle,
+  Wifi,
+  BadgeCheck,
+  Calendar,
+  Layers,
 } from "lucide-react";
-import { NegocioClienteConfig, PosOperationalMode, RubroNegocio } from "../types";
+import { NegocioClienteConfig, PosOperationalMode, RubroNegocio, RemoteClientLicense } from "../types";
 import {
   saveStoredNegocioConfig,
   saveAppEdition,
@@ -32,6 +38,7 @@ import {
   isFiscalEditionUnlocked,
   unlockFiscalEdition,
 } from "../mockDb";
+import { verifyLicenseOnline, autoRegisterBusinessInFirestore } from "../services/licenseService";
 
 interface InitialSetupModalProps {
   isOpen: boolean;
@@ -58,13 +65,38 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
   onComplete,
   showToast,
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  // Pasos: 1: Licencia (Client ID), 2: Versión (Bodega/Fiscal), 3: Datos Negocio, 4: Modo Cobro, 5: PIN Admin
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [selectedEdition, setSelectedEdition] = useState<"bodega" | "fiscal">(initialEdition);
   const [selectedPosMode, setSelectedPosMode] = useState<PosOperationalMode>(initialPosMode);
+
+  // Estado del Client ID y Validación de Licencia Remota
   const [clienteId, setClienteId] = useState<string>(() => {
     const lic = getRemoteLicense();
-    return lic.cliente_id || "CLI-001";
+    return lic.cliente_id && lic.cliente_id !== "CLI-001" ? lic.cliente_id : "";
   });
+  const [isCheckingLicense, setIsCheckingLicense] = useState<boolean>(false);
+  const [licenseResult, setLicenseResult] = useState<{
+    valid: boolean;
+    message: string;
+    license?: RemoteClientLicense;
+  } | null>(() => {
+    const lic = getRemoteLicense();
+    if (lic && lic.cliente_id && lic.cliente_id !== "CLI-001" && lic.estado_remoto === "ACTIVO") {
+      return {
+        valid: true,
+        message: `Licencia activa en equipo. Válida hasta ${lic.fecha_vencimiento_actual}.`,
+        license: lic,
+      };
+    }
+    return null;
+  });
+  const [isLicenseValidated, setIsLicenseValidated] = useState<boolean>(() => {
+    const lic = getRemoteLicense();
+    return Boolean(lic && lic.cliente_id && lic.cliente_id !== "CLI-001" && lic.estado_remoto === "ACTIVO");
+  });
+
+  // Estado de Seguridad y PIN
   const [adminPin, setAdminPin] = useState<string>(() => {
     const users = getStoredUsers();
     const admin = users.find((u) => u.rol === "ADMIN");
@@ -78,6 +110,67 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
   const [showPinText, setShowPinText] = useState<boolean>(false);
   const [showFiscalCodePrompt, setShowFiscalCodePrompt] = useState<boolean>(false);
   const [fiscalCodeInput, setFiscalCodeInput] = useState<string>("");
+
+  // Estado de Datos del Negocio (el cliente los introduce directamente)
+  const [config, setConfig] = useState<NegocioClienteConfig>({
+    ...initialConfig,
+    nombreComercial: initialConfig.nombreComercial || "Mi Comercio y Víveres",
+    razonSocial: initialConfig.razonSocial || "INVERSIONES Y COMERCIO, C.A.",
+    rif: initialConfig.rif || "J-40918274-1",
+    direccion: initialConfig.direccion || "Av. Principal, Local N° 1, Casco Central",
+    telefono: initialConfig.telefono || "+58 412-5551234",
+    whatsappCobros: initialConfig.whatsappCobros || "+58 412-5551234",
+    pieTicket: initialConfig.pieTicket || "¡Gracias por su compra! Conserve este comprobante.",
+  });
+
+  if (!isOpen) return null;
+
+  // Manejo de Validación en Vivo del Client ID
+  const handleValidateClientLicense = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = clienteId.trim().toUpperCase();
+    if (!clean) {
+      showToast("❌ Por favor ingrese el Client ID proporcionado por su proveedor.");
+      return;
+    }
+
+    setIsCheckingLicense(true);
+    setLicenseResult(null);
+
+    try {
+      const res = await verifyLicenseOnline(clean);
+      if (res.valid && res.license) {
+        setIsLicenseValidated(true);
+        setLicenseResult({
+          valid: true,
+          message: res.message,
+          license: res.license,
+        });
+        saveRemoteLicense(res.license);
+        if (res.license.edicion_contratada) {
+          setSelectedEdition(res.license.edicion_contratada);
+        }
+        showToast("✅ ¡Licencia validada exitosamente!");
+      } else {
+        setIsLicenseValidated(false);
+        setLicenseResult({
+          valid: false,
+          message: res.message || "Licencia no válida o inactiva.",
+          license: res.license,
+        });
+        showToast("❌ " + (res.message || "Código de licencia no válido."));
+      }
+    } catch {
+      setIsLicenseValidated(false);
+      setLicenseResult({
+        valid: false,
+        message: "Error de red al consultar el servidor. Verifique su conexión a internet.",
+      });
+      showToast("❌ Error al conectar con el servidor de licencias.");
+    } finally {
+      setIsCheckingLicense(false);
+    }
+  };
 
   const handleSelectFiscalEdition = () => {
     if (isFiscalEditionUnlocked()) {
@@ -106,53 +199,48 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
     }
   };
 
-  const [config, setConfig] = useState<NegocioClienteConfig>({
-    ...initialConfig,
-    nombreComercial: initialConfig.nombreComercial || "Mi Comercio y Víveres",
-    razonSocial: initialConfig.razonSocial || "INVERSIONES Y COMERCIO, C.A.",
-    rif: initialConfig.rif || "J-40918274-1",
-    direccion: initialConfig.direccion || "Av. Principal, Local N° 1, Casco Central",
-    telefono: initialConfig.telefono || "+58 412-5551234",
-    whatsappCobros: initialConfig.whatsappCobros || "+58 412-5551234",
-    pieTicket: initialConfig.pieTicket || "¡Gracias por su compra! Conserve este comprobante.",
-  });
-
-  if (!isOpen) return null;
-
-  const handleFinishSetup = (e?: React.FormEvent) => {
+  // Guardado Final y Puesta en Marcha con sincronización de datos a Firebase
+  const handleFinishSetup = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    if (!isLicenseValidated) {
+      showToast("❌ Debe validar un Client ID válido antes de continuar.");
+      setStep(1);
+      return;
+    }
 
     if (!config.nombreComercial.trim()) {
       showToast("❌ Por favor ingrese el nombre comercial del negocio.");
-      setStep(2);
+      setStep(3);
       return;
     }
     if (!config.rif.trim()) {
       showToast("❌ Por favor ingrese el RIF o Cédula fiscal.");
-      setStep(2);
+      setStep(3);
       return;
     }
 
     const cleanPin = adminPin.trim();
     if (cleanPin.length < 4) {
       showToast("❌ El PIN de Administrador debe tener al menos 4 dígitos.");
-      setStep(4);
+      setStep(5);
       return;
     }
     if (cleanPin !== confirmAdminPin.trim()) {
       showToast("❌ La confirmación del PIN no coincide.");
-      setStep(4);
+      setStep(5);
       return;
     }
 
-    const finalClienteId = clienteId.trim().toUpperCase() || "CLI-001";
+    const currentLic = getRemoteLicense();
+    const finalClienteId = (currentLic?.cliente_id || clienteId).trim() || "CLI-001";
 
-    // Save all initial preferences
+    // 1. Guardar preferencias comerciales en almacenamiento local
     saveStoredNegocioConfig(config);
     saveAppEdition(selectedEdition);
     savePosOperationalMode(selectedPosMode);
 
-    // Update Admin User PIN in SQLite/LocalStorage
+    // 2. Actualizar credenciales del usuario Administrador
     const users = getStoredUsers();
     const adminIdx = users.findIndex((u) => u.rol === "ADMIN" || u.id === "usr-admin-1");
     if (adminIdx >= 0) {
@@ -164,15 +252,32 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
       saveStoredCurrentUser(users[adminIdx]);
     }
 
-    // Sync license name & cliente_id for Google Sheets
-    const currentLic = getRemoteLicense();
+    // 3. Guardar estado de licencia en almacenamiento local
     saveRemoteLicense({
       ...currentLic,
       cliente_id: finalClienteId,
       nombre_negocio: config.nombreComercial,
       rif_cedula: config.rif,
+      telefono_contacto: config.telefono,
       edicion_contratada: selectedEdition,
     });
+
+    // 4. Registrar automáticamente los datos del negocio en Firebase Firestore
+    // Nota: Excluye expresamente 'direccion_fiscal' por requerimiento.
+    try {
+      const fbRes = await autoRegisterBusinessInFirestore({
+        clienteId: finalClienteId,
+        nombreNegocio: config.nombreComercial,
+        rifCedula: config.rif,
+        telefonoContacto: config.telefono,
+        edicionContratada: selectedEdition,
+      });
+      if (fbRes.success) {
+        console.log("[InitialSetup] Datos comerciales registrados en Firebase Firestore.");
+      }
+    } catch (err) {
+      console.warn("[InitialSetup] Error registrando datos en Firebase:", err);
+    }
 
     onComplete(config, selectedEdition, selectedPosMode);
     showToast(`✅ ¡Configuración inicial guardada para "${config.nombreComercial}"!`);
@@ -195,18 +300,18 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
                     Bienvenido a su Sistema POS Venezuela
                   </h2>
                   <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-600/50">
-                    Configuración Inicial
+                    Activación & Configuración
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Configure los datos de su negocio, elija la versión y defina su PIN de Administrador en 4 sencillos pasos.
+                  Active su licencia con su Client ID y personalice los datos de su negocio en 5 sencillos pasos.
                 </p>
               </div>
             </div>
           </div>
 
           {/* Stepper Navigation */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5 pt-3 border-t border-slate-800/80 text-xs font-semibold">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-5 pt-3 border-t border-slate-800/80 text-xs font-semibold">
             <button
               type="button"
               onClick={() => setStep(1)}
@@ -217,12 +322,18 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
               }`}
             >
               <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">1</span>
-              <span className="truncate">1. Versión</span>
+              <span className="truncate">1. Licencia</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={() => {
+                if (!isLicenseValidated) {
+                  showToast("⚠️ Debe validar su Client ID antes de avanzar.");
+                  return;
+                }
+                setStep(2);
+              }}
               className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border transition-all cursor-pointer ${
                 step === 2
                   ? "bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-900/30"
@@ -230,12 +341,18 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
               }`}
             >
               <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">2</span>
-              <span className="truncate">2. Datos Negocio</span>
+              <span className="truncate">2. Versión</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setStep(3)}
+              onClick={() => {
+                if (!isLicenseValidated) {
+                  showToast("⚠️ Debe validar su Client ID antes de avanzar.");
+                  return;
+                }
+                setStep(3);
+              }}
               className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border transition-all cursor-pointer ${
                 step === 3
                   ? "bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-900/30"
@@ -243,20 +360,45 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
               }`}
             >
               <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">3</span>
-              <span className="truncate">3. Modo Cobro</span>
+              <span className="truncate">3. Negocio</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setStep(4)}
+              onClick={() => {
+                if (!isLicenseValidated) {
+                  showToast("⚠️ Debe validar su Client ID antes de avanzar.");
+                  return;
+                }
+                setStep(4);
+              }}
               className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border transition-all cursor-pointer ${
                 step === 4
+                  ? "bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-900/30"
+                  : "bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200"
+              }`}
+            >
+              <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">4</span>
+              <span className="truncate">4. Modo Cobro</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!isLicenseValidated) {
+                  showToast("⚠️ Debe validar su Client ID antes de avanzar.");
+                  return;
+                }
+                setStep(5);
+              }}
+              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg border transition-all cursor-pointer ${
+                step === 5
                   ? "bg-amber-500 text-slate-950 font-extrabold border-amber-400 shadow-md shadow-amber-950/40"
                   : "bg-slate-900/60 text-slate-400 border-slate-800 hover:text-slate-200"
               }`}
             >
-              <span className="w-4 h-4 rounded-full bg-black/20 flex items-center justify-center text-[10px] font-bold">4</span>
-              <span className="truncate">4. PIN Admin</span>
+              <span className="w-4 h-4 rounded-full bg-black/20 flex items-center justify-center text-[10px] font-bold">5</span>
+              <span className="truncate">5. PIN Admin</span>
             </button>
           </div>
         </div>
@@ -264,14 +406,153 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-6">
           {/* ============================================================= */}
-          {/* PASO 1: SELECCIONAR LA VERSIÓN / EDICIÓN */}
+          {/* PASO 1: ACTIVACIÓN DE LICENCIA (CLIENT ID) */}
           {/* ============================================================= */}
           {step === 1 && (
+            <div className="space-y-5 animate-in fade-in duration-150 max-w-2xl mx-auto py-2">
+              <div className="text-center space-y-1.5">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-400 mb-1">
+                  <Key className="w-6 h-6" />
+                </div>
+                <h3 className="text-lg font-extrabold text-white">
+                  Paso 1: Activación de Licencia de Uso
+                </h3>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Ingrese el código de licencia (<strong>Client ID</strong>) proporcionado por su proveedor para habilitar y activar este equipo.
+                </p>
+              </div>
+
+              {/* Formulario de Validación de Client ID */}
+              <form onSubmit={handleValidateClientLicense} className="space-y-4">
+                <div className="bg-[#181b24] p-5 rounded-2xl border border-slate-800 shadow-lg space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Código de Licencia (Client ID) *:
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                        <Key className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={clienteId}
+                        onChange={(e) => {
+                          setClienteId(e.target.value.toUpperCase());
+                          if (isLicenseValidated) setIsLicenseValidated(false);
+                          setLicenseResult(null);
+                        }}
+                        placeholder="Ej: CLI-1001 o CLI-BODEGA"
+                        className="w-full pl-10 pr-4 py-3 bg-[#0d1017] border border-slate-700 rounded-xl text-white font-mono text-base font-bold tracking-wider placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 uppercase transition-all"
+                      />
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1 block">
+                      Este código enlaza su equipo con el plan contratado proporcionado por su proveedor.
+                    </span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isCheckingLicense || !clienteId.trim()}
+                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-900/40 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isCheckingLicense ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Consultando Servidor de Licencias...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Wifi className="w-4 h-4 text-blue-200" />
+                        <span>Verificar y Activar Licencia</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              {/* Resultado de la Validación */}
+              {licenseResult && (
+                <div
+                  className={`p-4 rounded-2xl border text-xs animate-in zoom-in-95 duration-150 ${
+                    licenseResult.valid
+                      ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-200"
+                      : "bg-rose-950/40 border-rose-500/50 text-rose-200"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {licenseResult.valid ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="space-y-1.5 flex-1">
+                      <div className="font-bold text-sm">
+                        {licenseResult.valid ? "¡Licencia Verificada y Lista para Usar!" : "No se pudo activar la licencia"}
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        {licenseResult.message}
+                      </p>
+
+                      {licenseResult.valid && licenseResult.license && (
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-800/40 font-mono text-[11px]">
+                          <div>
+                            <span className="text-slate-400">Client ID: </span>
+                            <strong className="text-white">{licenseResult.license.cliente_id}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Estado: </span>
+                            <span className="text-emerald-400 font-bold">🟢 ACTIVO</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Válida hasta: </span>
+                            <strong className="text-amber-300">{licenseResult.license.fecha_vencimiento_actual}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Edición: </span>
+                            <strong className="text-blue-300 uppercase">
+                              {licenseResult.license.edicion_contratada === "fiscal" ? "Fiscal SENIAT" : "Bodega & Mostrador"}
+                            </strong>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {licenseResult.valid && (
+                    <div className="mt-3 pt-2.5 border-t border-emerald-800/40 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setStep(2)}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow"
+                      >
+                        <span>Continuar a Selección de Versión</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tarjeta Informativa de Asistencia */}
+              <div className="p-3.5 bg-[#10131a] border border-slate-800/80 rounded-xl text-xs text-slate-400 space-y-1">
+                <span className="font-semibold text-slate-300">💡 ¿No posee un Client ID?</span>
+                <p className="text-[11px] leading-relaxed">
+                  Comuníquese con el proveedor de su sistema para recibir el código de activación asignado a su comercio.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================= */}
+          {/* PASO 2: SELECCIONAR LA VERSIÓN / EDICIÓN */}
+          {/* ============================================================= */}
+          {step === 2 && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="text-center sm:text-left">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>Paso 1: ¿Qué tipo de negocio tiene? Elija su versión:</span>
+                  <span>Paso 2: ¿Qué tipo de negocio tiene? Elija su versión:</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
                   Ambas ediciones están habilitadas y puede alternar entre ellas en cualquier momento desde la barra superior.
@@ -438,225 +719,235 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
           )}
 
           {/* ============================================================= */}
-          {/* PASO 2: DATOS DEL NEGOCIO (TICKETS & FACTURAS) */}
+          {/* PASO 3: DATOS DEL NEGOCIO (EL CLIENTE LOS INTRODUCE DIRECTAMENTE) */}
           {/* ============================================================= */}
-          {step === 2 && (
+          {step === 3 && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-150">
               {/* Formulario */}
               <div className="lg:col-span-7 space-y-4">
                 <div className="bg-[#181b24] p-4 rounded-xl border border-slate-800 space-y-3">
-                  <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Building2 className="w-4 h-4" /> Datos de Identificación del Comercio
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4" /> Datos de Identificación del Comercio
+                    </h3>
+                    <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+                      ID: {clienteId || "CLI-001"}
+                    </span>
+                  </div>
 
                   <div className="space-y-3">
-                    {/* ID de Cliente / Código de Licencia para Google Sheets */}
-                    <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/40 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[11px] font-bold text-blue-300">
-                          ID de Cliente / Código en Google Sheets *
-                        </label>
-                        <span className="text-[10px] text-blue-400 font-mono">
-                          Para suscripción y fechas
-                        </span>
-                      </div>
-                      <input
-                        type="text"
-                        value={clienteId}
-                        onChange={(e) => setClienteId(e.target.value.toUpperCase())}
-                        placeholder="Ej. CLI-001 / CLI-1002 / J-40918274-1"
-                        className="w-full bg-[#0d0f14] border border-blue-500/60 rounded-lg px-3 py-2 text-xs text-white font-mono font-bold tracking-wider placeholder-slate-500 focus:outline-none focus:border-blue-400 uppercase"
-                        required
-                      />
-                      <p className="text-[10px] text-slate-400">
-                        Este es el código que el sistema buscará en la columna <strong>ID_CLIENTE</strong> de su Google Sheet para validar el pago y días de corte.
-                      </p>
-                    </div>
-
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                        Nombre Comercial del Negocio (Encabezado del Ticket) *
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Nombre Comercial (Letrero / Tienda) *:
                       </label>
                       <input
                         type="text"
+                        required
                         value={config.nombreComercial}
                         onChange={(e) => setConfig({ ...config, nombreComercial: e.target.value })}
-                        placeholder="Ej. Bodega y Víveres Don Pedro"
-                        className="w-full bg-[#0d0f14] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-bold"
-                        required
+                        placeholder="Ej: Bodega La Bendición, C.A."
+                        className="w-full bg-[#11131a] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-semibold"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                          Razón Social Legal *
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          RIF o Cédula Fiscal *:
                         </label>
                         <input
                           type="text"
-                          value={config.razonSocial}
-                          onChange={(e) => setConfig({ ...config, razonSocial: e.target.value })}
-                          placeholder="Ej. INVERSIONES DON PEDRO, C.A."
-                          className="w-full bg-[#0d0f14] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                           required
+                          value={config.rif}
+                          onChange={(e) => setConfig({ ...config, rif: e.target.value.toUpperCase() })}
+                          placeholder="J-12345678-0 o V-12345678"
+                          className="w-full bg-[#11131a] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500 uppercase"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                          RIF o Cédula Fiscal *
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Rubro del Comercio:
                         </label>
-                        <input
-                          type="text"
-                          value={config.rif}
-                          onChange={(e) => setConfig({ ...config, rif: e.target.value.toUpperCase() })}
-                          placeholder="Ej. J-40918274-1 / V-18940214-0"
-                          className="w-full bg-[#0d0f14] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                          required
-                        />
+                        <select
+                          value={config.rubro || "bodega"}
+                          onChange={(e) => setConfig({ ...config, rubro: e.target.value as RubroNegocio })}
+                          className="w-full bg-[#11131a] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="bodega">Bodega / Minimarket / Abasto</option>
+                          <option value="farmacia">Farmacia / Droguería</option>
+                          <option value="charcuteria">Charcutería / Carnicería</option>
+                          <option value="ferreteria">Ferretería / Materiales</option>
+                          <option value="repuestos">Venta de Repuestos / Taller</option>
+                          <option value="ropa_calzado">Tienda de Ropa y Calzado</option>
+                          <option value="restaurante">Restaurante / Comida Rápida</option>
+                          <option value="panaderia">Panadería y Pastelería</option>
+                          <option value="general">Comercio General</option>
+                        </select>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                        Dirección del Establecimiento / Ciudad
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Razón Social (Para Facturas Fiscales):
+                      </label>
+                      <input
+                        type="text"
+                        value={config.razonSocial}
+                        onChange={(e) => setConfig({ ...config, razonSocial: e.target.value })}
+                        placeholder="Ej: DISTRIBUIDORA Y VÍVERES CARACAS, C.A."
+                        className="w-full bg-[#11131a] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-[#181b24] p-4 rounded-xl border border-slate-800 space-y-3">
+                  <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Phone className="w-4 h-4" /> Ubicación y Canales de Contacto
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Dirección Fiscal o Ubicación del Local:
                       </label>
                       <input
                         type="text"
                         value={config.direccion}
                         onChange={(e) => setConfig({ ...config, direccion: e.target.value })}
-                        placeholder="Ej. Av. Bolívar, Local 12, Frente a la Plaza, Caracas"
-                        className="w-full bg-[#0d0f14] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        placeholder="Calle o Av., Centro Comercial, Ciudad, Estado"
+                        className="w-full bg-[#11131a] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                          Teléfono de Contacto
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Teléfono de Contacto:
                         </label>
                         <input
                           type="text"
                           value={config.telefono}
                           onChange={(e) => setConfig({ ...config, telefono: e.target.value })}
-                          placeholder="Ej. 0212-5551234 / 0412-5551234"
-                          className="w-full bg-[#0d0f14] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          placeholder="0212-5551234 o 0414-1234567"
+                          className="w-full bg-[#11131a] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                          WhatsApp de Cobros (Para fiados)
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          WhatsApp para Enviar Comprobantes:
                         </label>
                         <input
                           type="text"
                           value={config.whatsappCobros}
                           onChange={(e) => setConfig({ ...config, whatsappCobros: e.target.value })}
-                          placeholder="Ej. +58 412 5551234"
-                          className="w-full bg-[#0d0f14] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                          placeholder="+58 412 1234567"
+                          className="w-full bg-[#11131a] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                        Mensaje de Pie de Ticket
+                      <label className="block text-xs font-medium text-slate-300 mb-1">
+                        Pie del Comprobante / Ticket de Venta:
                       </label>
                       <input
                         type="text"
                         value={config.pieTicket}
                         onChange={(e) => setConfig({ ...config, pieTicket: e.target.value })}
-                        placeholder="Ej. ¡Gracias por su compra! Vuelva pronto."
-                        className="w-full bg-[#0d0f14] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        placeholder="¡Gracias por su compra! Conserve este comprobante."
+                        className="w-full bg-[#11131a] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Live Thermal Ticket Preview */}
-              <div className="lg:col-span-5 flex flex-col">
-                <div className="bg-[#181b24] p-4 rounded-xl border border-slate-800 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                      <Receipt className="w-4 h-4 text-emerald-400" /> Vista Previa del Ticket Térmico
-                    </h3>
+              {/* Vista Previa del Ticket Impreso */}
+              <div className="lg:col-span-5 flex flex-col items-center justify-start space-y-3">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 self-start">
+                  <Receipt className="w-4 h-4 text-emerald-400" />
+                  <span>Vista Previa del Ticket / Factura</span>
+                </div>
 
-                    <div className="bg-white text-slate-900 p-4 rounded-lg shadow-inner font-mono text-[11px] leading-tight space-y-1.5 border border-slate-300">
-                      <div className="text-center pb-1 border-b border-dashed border-slate-400">
-                        <div className="font-extrabold text-xs uppercase tracking-tight">
-                          {config.nombreComercial || "NOMBRE DEL COMERCIO"}
-                        </div>
-                        <div className="text-[10px] text-slate-600">
-                          {config.razonSocial || "RAZÓN SOCIAL, C.A."}
-                        </div>
-                        <div className="text-[10px] font-bold">
-                          RIF: {config.rif || "J-00000000-0"}
-                        </div>
-                        <div className="text-[9px] text-slate-600 truncate">
-                          {config.direccion || "Dirección del Establecimiento"}
-                        </div>
-                        <div className="text-[9px] text-slate-600">
-                          TELF: {config.telefono || "+58 412-0000000"}
-                        </div>
-                      </div>
+                <div className="w-full max-w-xs bg-white text-slate-900 p-5 rounded-2xl shadow-xl font-mono text-[11px] leading-tight space-y-2 border border-slate-200">
+                  <div className="text-center border-b border-dashed border-slate-400 pb-2.5">
+                    <p className="font-extrabold text-sm uppercase tracking-tight">
+                      {config.nombreComercial || "NOMBRE COMERCIAL"}
+                    </p>
+                    <p className="text-[10px] text-slate-700 uppercase">
+                      {config.razonSocial || "RAZÓN SOCIAL"}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-800">
+                      RIF: {config.rif || "J-00000000-0"}
+                    </p>
+                    <p className="text-[9.5px] text-slate-600 mt-1">
+                      {config.direccion || "Dirección del comercio"}
+                    </p>
+                    <p className="text-[9.5px] text-slate-600">
+                      TELF: {config.telefono || "+58 412-0000000"}
+                    </p>
+                  </div>
 
-                      <div className="py-1 text-[10px] space-y-0.5 border-b border-dashed border-slate-400">
-                        <div className="flex justify-between">
-                          <span>FACTURA: 000452</span>
-                          <span>FECHA: {new Date().toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex justify-between text-slate-600">
-                          <span>TASA OFICIAL BCV:</span>
-                          <span className="font-bold">Bs. {bcvRate.toFixed(2)}</span>
-                        </div>
-                      </div>
-
-                      <div className="py-1 text-[10px] space-y-1 border-b border-dashed border-slate-400">
-                        <div className="flex justify-between">
-                          <span>1x Harina PAN 1kg (E)</span>
-                          <span>$1.40</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>1x Arroz Blanco 1kg (E)</span>
-                          <span>$1.55</span>
-                        </div>
-                      </div>
-
-                      <div className="pt-1 text-[11px] font-bold space-y-0.5">
-                        <div className="flex justify-between text-base font-extrabold">
-                          <span>TOTAL A PAGAR:</span>
-                          <span>$ 2.95</span>
-                        </div>
-                        <div className="flex justify-between text-emerald-800 text-xs">
-                          <span>TOTAL EN BS. BCV:</span>
-                          <span>Bs. {(2.95 * bcvRate).toFixed(2)}</span>
-                        </div>
-                      </div>
-
-                      <div className="text-center pt-2 text-[9px] text-slate-600 border-t border-dashed border-slate-400 italic">
-                        {config.pieTicket || "¡Gracias por su compra!"}
-                      </div>
+                  <div className="py-1 text-[10px] space-y-0.5 text-slate-700">
+                    <div className="flex justify-between">
+                      <span>FACTURA FISCAL:</span>
+                      <span className="font-bold"># 00000452</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>N° CONTROL:</span>
+                      <span className="font-bold">00-00001890</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>FECHA / HORA:</span>
+                      <span>{new Date().toLocaleString("es-VE")}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-blue-900">
+                      <span>TASA OFICIAL BCV:</span>
+                      <span>Bs. {bcvRate.toFixed(2)}</span>
                     </div>
                   </div>
 
-                  <p className="text-[10px] text-slate-500 text-center mt-3">
-                    Este encabezado se imprimirá en sus recibos de 58mm y 80mm.
-                  </p>
+                  <div className="border-t border-b border-dashed border-slate-400 py-2 space-y-1 text-[10.5px]">
+                    <div className="flex justify-between">
+                      <span>1x Harina PAN Blanca 1kg</span>
+                      <span className="font-bold">$1.40</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>1x Arroz Blanco 1kg</span>
+                      <span className="font-bold">$1.55</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 text-right space-y-1 text-xs">
+                    <div className="flex justify-between font-bold text-sm">
+                      <span>TOTAL PAGADO:</span>
+                      <span>$2.95 USD</span>
+                    </div>
+                    <div className="text-[11px] font-extrabold text-blue-700">
+                      ≈ Bs. {(2.95 * bcvRate).toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div className="text-center pt-3 border-t border-dashed border-slate-400 text-[10px] text-slate-600 italic">
+                    {config.pieTicket || "¡Gracias por su compra!"}
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {/* ============================================================= */}
-          {/* PASO 3: MODO OPERATIVO DE COBRO POS */}
+          {/* PASO 4: MODO OPERATIVO DE COBRO POS */}
           {/* ============================================================= */}
-          {step === 3 && (
+          {step === 4 && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="text-center sm:text-left">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Smartphone className="w-4 h-4 text-blue-400" />
-                  <span>Paso 3: ¿Cómo desea cobrar en el Punto de Venta?</span>
+                  <span>Paso 4: ¿Cómo desea cobrar en el Punto de Venta?</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
                   Elija si operará totalizando en pantalla o integrando un terminal bancario SmartPOS.
@@ -750,73 +1041,62 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
           )}
 
           {/* ============================================================= */}
-          {/* PASO 4: DEFINIR PIN DE SEGURIDAD DEL ADMINISTRADOR */}
+          {/* PASO 5: SEGURIDAD Y PIN DE ADMINISTRADOR */}
           {/* ============================================================= */}
-          {step === 4 && (
-            <div className="space-y-5 animate-in fade-in duration-150">
-              <div className="text-center sm:text-left">
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Lock className="w-5 h-5 text-amber-400" />
-                  <span>Paso 4: Definir PIN de Seguridad para el Administrador</span>
+          {step === 5 && (
+            <div className="space-y-4 animate-in fade-in duration-150 max-w-lg mx-auto py-2">
+              <div className="text-center space-y-1">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 mb-1">
+                  <Lock className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-white">
+                  Paso 5: Seguridad y Clave del Administrador
                 </h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Este PIN protegerá el acceso a las funciones de dueño del negocio, cierres de caja, anulaciones, inventario y configuración.
+                <p className="text-xs text-slate-400">
+                  Defina el PIN numérico secreto con el que usted (propietario) accederá a ver ganancias, reportes y configurar el sistema.
                 </p>
               </div>
 
-              <div className="bg-[#181b24] p-5 sm:p-6 rounded-2xl border border-slate-800 space-y-5">
-                <div className="flex items-center gap-3 p-3.5 bg-amber-950/30 border border-amber-500/40 rounded-xl text-xs text-amber-200">
-                  <KeyRound className="w-5 h-5 text-amber-400 shrink-0" />
+              <div className="bg-[#181b24] p-5 rounded-2xl border border-slate-800 shadow-lg space-y-4">
+                <div className="space-y-3">
                   <div>
-                    <span className="font-bold text-amber-300 block">Acceso Principal de Propietario (ADMIN)</span>
-                    <span>Por defecto el PIN es <strong>1234</strong>. Ingrese su nuevo código secreto numérico de 4 a 6 dígitos.</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Campo PIN Principal */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-200">
-                      PIN de Administrador (4 a 6 dígitos) *
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Nuevo PIN de Administrador (Mínimo 4 dígitos) *:
                     </label>
                     <div className="relative">
                       <input
                         type={showPinText ? "text" : "password"}
-                        maxLength={6}
+                        inputMode="numeric"
+                        maxLength={8}
                         value={adminPin}
-                        onChange={(e) => setAdminPin(e.target.value.replace(/[^0-9a-zA-Z]/g, ""))}
-                        placeholder="Ej. 1234, 2580"
-                        className="w-full bg-[#0d0f14] border border-amber-500/60 focus:border-amber-400 rounded-xl px-4 py-3 text-lg font-mono font-extrabold text-amber-300 tracking-widest text-center focus:outline-none"
+                        onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ""))}
+                        placeholder="Ej: 1234"
+                        className="w-full bg-[#11131a] border border-slate-700 rounded-xl px-4 py-2.5 text-center text-lg font-mono font-bold tracking-widest text-white focus:outline-none focus:border-amber-500"
                         required
                       />
                       <button
                         type="button"
                         onClick={() => setShowPinText(!showPinText)}
-                        className="absolute right-3 top-3.5 text-slate-400 hover:text-white cursor-pointer"
-                        title={showPinText ? "Ocultar PIN" : "Mostrar PIN"}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-white"
                       >
                         {showPinText ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
-                  {/* Campo Confirmación PIN */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-bold text-slate-200">
-                      Confirmar PIN de Administrador *
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                      Confirmar PIN de Administrador *:
                     </label>
                     <div className="relative">
                       <input
                         type={showPinText ? "text" : "password"}
-                        maxLength={6}
+                        inputMode="numeric"
+                        maxLength={8}
                         value={confirmAdminPin}
-                        onChange={(e) => setConfirmAdminPin(e.target.value.replace(/[^0-9a-zA-Z]/g, ""))}
+                        onChange={(e) => setConfirmAdminPin(e.target.value.replace(/\D/g, ""))}
                         placeholder="Repita el PIN"
-                        className={`w-full bg-[#0d0f14] border rounded-xl px-4 py-3 text-lg font-mono font-extrabold tracking-widest text-center focus:outline-none ${
-                          confirmAdminPin && adminPin !== confirmAdminPin
-                            ? "border-rose-500 text-rose-400"
-                            : "border-slate-700 text-emerald-300 focus:border-emerald-400"
-                        }`}
+                        className="w-full bg-[#11131a] border border-slate-700 rounded-xl px-4 py-2.5 text-center text-lg font-mono font-bold tracking-widest text-white focus:outline-none focus:border-amber-500"
                         required
                       />
                     </div>
@@ -854,16 +1134,48 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
                 ← Volver al Paso {step - 1}
               </button>
             ) : (
-              <span className="text-xs text-slate-500">Paso 1 de 4: Selección de Versión</span>
+              <span className="text-xs text-slate-500 font-mono">Paso 1 de 5: Activación de Licencia</span>
             )}
           </div>
 
           <div className="flex items-center gap-3">
-            {step < 4 ? (
+            {step === 1 && (
+              isLicenseValidated ? (
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer"
+                >
+                  <span>Continuar al Paso 2</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleValidateClientLicense()}
+                  disabled={isCheckingLicense || !clienteId.trim()}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer"
+                >
+                  {isCheckingLicense ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Validando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Key className="w-4 h-4 text-amber-300" />
+                      <span>Verificar y Activar Licencia</span>
+                    </>
+                  )}
+                </button>
+              )
+            )}
+
+            {step > 1 && step < 5 && (
               <button
                 type="button"
                 onClick={() => {
-                  if (step === 2) {
+                  if (step === 3) {
                     if (!config.nombreComercial.trim()) {
                       showToast("❌ Ingrese el nombre comercial del negocio.");
                       return;
@@ -871,6 +1183,21 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
                     if (!config.rif.trim()) {
                       showToast("❌ Ingrese el RIF o Cédula fiscal.");
                       return;
+                    }
+                    // Sincronizar inmediatamente a Firebase al completar los datos del negocio
+                    const licId = (getRemoteLicense()?.cliente_id || clienteId).trim();
+                    if (licId) {
+                      autoRegisterBusinessInFirestore({
+                        clienteId: licId,
+                        nombreNegocio: config.nombreComercial,
+                        rifCedula: config.rif,
+                        telefonoContacto: config.telefono,
+                        edicionContratada: selectedEdition,
+                      }).then((res) => {
+                        if (res.success) {
+                          showToast("☁️ Datos del negocio respaldados en la nube.");
+                        }
+                      }).catch(() => {});
                     }
                   }
                   setStep((prev) => (prev + 1) as any);
@@ -880,7 +1207,9 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
                 <span>Continuar al Paso {step + 1}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
-            ) : (
+            )}
+
+            {step === 5 && (
               <button
                 type="button"
                 onClick={() => handleFinishSetup()}

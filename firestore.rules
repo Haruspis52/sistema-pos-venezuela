@@ -12,7 +12,19 @@ service cloud.firestore {
       // Prevent unauthorized enumeration of all client stores
       allow list: if request.auth != null;
 
-      // Only authenticated admin dashboard can create or modify licenses
+      // Allow client app during installation to auto-register business info for its own licenseId
+      // without modifying protected fields like cuota, vencimiento, or estado_remoto
+      allow update: if isValidId(licenseId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'cuota_mensual_usd', 'cuota', 'monto_instalacion_usd', 'instalacion',
+          'fecha_vencimiento_actual', 'fecha_vencimiento', 'vencimiento',
+          'estado_remoto', 'estado', 'status', 'dias_gracia_offline_max', 'motivo_bloqueo'
+        ]);
+
+      // Allow creation with valid license ID
+      allow create: if isValidId(licenseId);
+
+      // Only authenticated admin dashboard can delete or perform unrestricted writes
       allow write: if request.auth != null;
     }
 

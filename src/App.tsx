@@ -21,6 +21,7 @@ import {
   getStoredProducts,
   saveProducts,
   getStoredCategories,
+  saveCategories,
   getStoredMovements,
   saveMovements,
   getStoredSales,
@@ -672,34 +673,130 @@ export function App() {
     showToast(`Producto '${newProd.nombre}' registrado con éxito en SQLite.`);
   };
 
-  const handleUpdateProduct = (prod: Producto) => {
-    const updated = products.map((p) => (p.id === prod.id ? prod : p));
+  const handleUpdateProduct = (
+    prod: Producto,
+    originalBarcode?: string,
+    originalId?: number | string
+  ) => {
+    let matched = false;
+    const targetCode = (originalBarcode || prod.codigo_barras || "").trim().toLowerCase();
+    const targetId = originalId !== undefined ? originalId : prod.id;
+    let oldProduct: Producto | null = null;
+
+    const updated = products.map((p) => {
+      const idMatch =
+        (targetId !== undefined && (p.id === targetId || String(p.id) === String(targetId))) ||
+        (prod.id !== undefined && (p.id === prod.id || String(p.id) === String(prod.id)));
+
+      const codeMatch = Boolean(
+        targetCode &&
+        p.codigo_barras &&
+        p.codigo_barras.trim().toLowerCase() === targetCode
+      );
+
+      if (idMatch || codeMatch) {
+        matched = true;
+        oldProduct = p;
+        return {
+          ...p,
+          ...prod,
+          id: p.id ?? prod.id,
+        };
+      }
+      return p;
+    });
+
+    if (!matched) {
+      const nameMatchIdx = updated.findIndex(
+        (p) => p.nombre.trim().toLowerCase() === prod.nombre.trim().toLowerCase()
+      );
+      if (nameMatchIdx >= 0) {
+        oldProduct = updated[nameMatchIdx];
+        updated[nameMatchIdx] = { ...updated[nameMatchIdx], ...prod };
+        matched = true;
+      } else {
+        updated.unshift(prod);
+      }
+    }
+
     updateProductsState(updated);
+
+    // Si el stock fue modificado en la edición, registrar movimiento en Kardex para trazabilidad SENIAT
+    if (oldProduct && (oldProduct as Producto).stock_actual !== prod.stock_actual) {
+      const diff = prod.stock_actual - (oldProduct as Producto).stock_actual;
+      const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+      const newMov: Movimiento = {
+        id: movements.length + 1,
+        producto_id: prod.id,
+        producto_nombre: prod.nombre,
+        tipo: "AJUSTE",
+        cantidad: Math.abs(diff),
+        costo_unitario: prod.precio_costo,
+        costo_promedio_ponderado: prod.costo_promedio_ponderado || prod.precio_costo,
+        stock_resultante: prod.stock_actual,
+        motivo: `Ajuste manual de ficha: stock anterior ${(oldProduct as Producto).stock_actual} -> nuevo stock ${prod.stock_actual}`,
+        fecha: now,
+        usuario: currentUser?.username || "Admin Fiscal",
+      };
+      updateMovementsState([newMov, ...movements]);
+    }
+
     showToast(`Producto '${prod.nombre}' actualizado.`);
   };
 
-  const handleDeleteProduct = (id: number) => {
-    const target = products.find((p) => p.id === id);
-    const updated = products.filter((p) => p.id !== id);
+  const handleDeleteProduct = (id: number | string, codigoBarras?: string) => {
+    const targetCode = (codigoBarras || "").trim().toLowerCase();
+    const target = products.find(
+      (p) =>
+        p.id === id ||
+        String(p.id) === String(id) ||
+        (targetCode && p.codigo_barras && p.codigo_barras.trim().toLowerCase() === targetCode)
+    );
+    const updated = products.filter(
+      (p) =>
+        p.id !== id &&
+        String(p.id) !== String(id) &&
+        (!targetCode || !p.codigo_barras || p.codigo_barras.trim().toLowerCase() !== targetCode)
+    );
     updateProductsState(updated);
     showToast(`Producto '${target?.nombre || id}' eliminado del inventario.`);
+  };
+
+  const handleBatchImportProducts = (
+    updatedProducts: Producto[],
+    updatedCategories?: Categoria[]
+  ) => {
+    updateProductsState(updatedProducts);
+    if (updatedCategories && updatedCategories.length > 0) {
+      setCategories(updatedCategories);
+      saveCategories(updatedCategories);
+    }
   };
 
   // Stock Adjustment strictly enforcing Venezuelan LISLR Art. 177:
   // 1. Method: Costo Promedio Ponderado (PMP)
   // 2. Prohibition of negative stock
   const handleQuickStockAdjustment = (
-    prodId: number,
+    prodId: number | string,
     tipo: "ENTRADA" | "SALIDA" | "AJUSTE",
     cantidad: number,
     motivo: string,
-    costoCompra?: number
+    costoCompra?: number,
+    codigoBarras?: string
   ) => {
-    const target = products.find((p) => p.id === prodId);
-    if (!target) return;
+    const targetCode = (codigoBarras || "").trim().toLowerCase();
+    const target = products.find(
+      (p) =>
+        (prodId !== undefined && (p.id === prodId || String(p.id) === String(prodId))) ||
+        (targetCode && p.codigo_barras && p.codigo_barras.trim().toLowerCase() === targetCode)
+    );
+    if (!target) {
+      showToast("❌ No se encontró el producto en el catálogo para ajustar stock.");
+      return;
+    }
 
-    const currentPmp = target.costo_promedio_ponderado || target.precio_costo;
-    let newStock = target.stock_actual;
+    const currentPmp = target.costo_promedio_ponderado || target.precio_costo || 0;
+    let newStock = target.stock_actual || 0;
     let newPmp = currentPmp;
     let movementCost = currentPmp;
 
@@ -730,22 +827,27 @@ export function App() {
       movementCost = currentPmp;
     }
 
-    const updatedProducts = products.map((p) =>
-      p.id === prodId
+    const updatedProducts = products.map((p) => {
+      const isTarget =
+        (prodId !== undefined && (p.id === prodId || String(p.id) === String(prodId))) ||
+        (targetCode && p.codigo_barras && p.codigo_barras.trim().toLowerCase() === targetCode) ||
+        (p.id === target.id);
+
+      return isTarget
         ? {
             ...p,
             stock_actual: newStock,
             costo_promedio_ponderado: newPmp,
             precio_costo: newPmp,
           }
-        : p
-    );
+        : p;
+    });
     updateProductsState(updatedProducts);
 
     const now = new Date().toISOString().slice(0, 19).replace("T", " ");
     const newMov: Movimiento = {
       id: movements.length + 1,
-      producto_id: prodId,
+      producto_id: target.id,
       producto_nombre: target.nombre,
       tipo,
       cantidad,
@@ -754,7 +856,7 @@ export function App() {
       stock_resultante: newStock,
       motivo,
       fecha: now,
-      usuario: "Admin Fiscal",
+      usuario: currentUser?.username || "Admin Fiscal",
     };
     updateMovementsState([newMov, ...movements]);
 
@@ -1147,13 +1249,13 @@ export function App() {
           <div className="rounded-2xl border border-slate-800 bg-[#161920] shadow-2xl overflow-hidden">
             {/* Main Application Tab Bar */}
             <div className="bg-[#14161c] px-4 pt-3 pb-2 border-b border-slate-800 flex items-center justify-between gap-2 overflow-x-auto">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {/* Pestaña Exclusiva de Edición Bodega */}
                 {appEdition === "bodega" && (
                   <button
                     id="tab-bodega"
                     onClick={() => setActiveCtkTab("bodega")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all border ${
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all border ${
                       activeCtkTab === "bodega"
                         ? "bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-950/40"
                         : "bg-[#1d2028] text-amber-300 hover:text-amber-200 hover:bg-slate-800 border-amber-500/30"
@@ -1170,7 +1272,7 @@ export function App() {
                       <button
                         id="tab-pos"
                         onClick={() => setActiveCtkTab("pos")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                        className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                           activeCtkTab === "pos"
                             ? "bg-blue-600 text-white shadow-md shadow-blue-900/40"
                             : "bg-[#1d2028] text-slate-400 hover:text-white hover:bg-slate-800"
@@ -1183,7 +1285,7 @@ export function App() {
                       <button
                         id="tab-movements"
                         onClick={() => setActiveCtkTab("movements")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                        className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                           activeCtkTab === "movements"
                             ? "bg-blue-600 text-white shadow-md shadow-blue-900/40"
                             : "bg-[#1d2028] text-slate-400 hover:text-white hover:bg-slate-800"
@@ -1199,7 +1301,7 @@ export function App() {
                   <button
                     id="tab-sales-book"
                     onClick={() => setActiveCtkTab("sales_book")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                       activeCtkTab === "sales_book"
                         ? appEdition === "bodega"
                           ? "bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-950/40"
@@ -1224,7 +1326,7 @@ export function App() {
                   <button
                     id="tab-inventory"
                     onClick={() => setActiveCtkTab("inventory")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                       activeCtkTab === "inventory"
                         ? appEdition === "bodega"
                           ? "bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-950/40"
@@ -1240,7 +1342,7 @@ export function App() {
                   <button
                     id="tab-dashboard"
                     onClick={() => setActiveCtkTab("dashboard")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all border ${
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all border ${
                       activeCtkTab === "dashboard"
                         ? appEdition === "bodega"
                           ? "bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-md shadow-amber-950/40"
@@ -1255,7 +1357,7 @@ export function App() {
                   <button
                     id="tab-invoice-ai"
                     onClick={() => setActiveCtkTab("invoice_ai")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                       activeCtkTab === "invoice_ai"
                         ? appEdition === "bodega"
                           ? "bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-950/40"
@@ -1329,6 +1431,8 @@ export function App() {
                     onDeleteProduct={handleDeleteProduct}
                     onQuickStockAdjustment={handleQuickStockAdjustment}
                     currentUser={currentUser}
+                    onBatchImportProducts={handleBatchImportProducts}
+                    showToast={showToast}
                   />
                 )}
 

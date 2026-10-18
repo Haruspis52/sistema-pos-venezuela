@@ -636,9 +636,9 @@ export const PosView: React.FC<PosViewProps> = ({
           {/* Quick Dropdown results */}
           {searchResults.length > 0 && (
             <div className="absolute left-3 right-3 top-full mt-1 bg-[#181a20] border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden divide-y divide-slate-800">
-              {searchResults.map((p) => (
+              {searchResults.map((p, idx) => (
                 <div
-                  key={p.id}
+                  key={`search-res-${p.id}-${p.codigo_barras || ""}-${idx}`}
                   onClick={() => handleAddToCart(p)}
                   className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-800/80 cursor-pointer transition-colors text-xs"
                 >
