@@ -160,10 +160,10 @@ export const Header: React.FC<HeaderProps> = ({
         {/* =================================================================== */}
         <div className="flex items-center gap-3 shrink-0">
           {/* Logo del Sistema */}
-          <div className="w-10 h-10 rounded-xl overflow-hidden border border-blue-500/30 bg-[#161a24] p-0.5 shadow-sm shadow-blue-950/40 shrink-0">
+          <div className="w-10 h-10 rounded-xl overflow-hidden border border-blue-400/30 bg-[#161a24] p-0.5 shadow-sm shadow-blue-950/40 shrink-0">
             <img
-              src="/app_icon.jpg"
-              alt="Logo del Sistema"
+              src="/src/assets/images/faraday_pos_dark_icon_1794172646016.jpg"
+              alt="Logo de FaradayPOS"
               className="w-full h-full object-cover rounded-[9px]"
               referrerPolicy="no-referrer"
             />
@@ -173,7 +173,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className="font-extrabold text-sm sm:text-base text-white tracking-tight">
-                POS Venezuela
+                FaradayPOS
               </span>
               <span className="text-slate-600 hidden sm:inline" aria-hidden="true">·</span>
 
@@ -650,11 +650,11 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Header del Drawer */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg overflow-hidden border border-blue-500/40">
-                    <img src="/app_icon.jpg" alt="Logo" className="w-full h-full object-cover" />
+                  <div className="w-8 h-8 rounded-lg overflow-hidden border border-blue-400/40">
+                    <img src="/src/assets/images/faraday_pos_dark_icon_1794172646016.jpg" alt="Logo de FaradayPOS" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-white">POS Venezuela</h3>
+                    <h3 className="font-bold text-sm text-white">FaradayPOS</h3>
                     <p className="text-[10px] text-slate-400">Panel de Control Rápido</p>
                   </div>
                 </div>

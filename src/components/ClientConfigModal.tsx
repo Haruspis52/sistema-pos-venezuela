@@ -511,7 +511,7 @@ export const ClientConfigModal: React.FC<ClientConfigModalProps> = ({
                 "{config.pieTicket || "¡Gracias por su preferencia!"}"
               </div>
               <div className="text-center text-[8px] text-gray-500 font-sans">
-                Sistema POS Dual Venezuela
+                FaradayPOS Venezuela
               </div>
             </div>
           </div>

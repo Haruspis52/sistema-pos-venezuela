@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useDeferredValue, Suspense } from "react";
 import { Producto, Categoria, SystemUser, TipoAlicuotaIva } from "../types";
 import { calcularPMP, ROLE_PERMISSIONS, verifyAdminPin } from "../mockDb";
 import {
@@ -28,8 +28,24 @@ import {
   KeyRound,
   FileDown,
 } from "lucide-react";
-import { UniversalCatalogImportModal } from "./UniversalCatalogImportModal";
-import { StockExportModal } from "./StockExportModal";
+import {
+  useResizableColumns,
+  ColumnResizeHandle,
+  ColumnConfiguratorToolbar,
+  ColumnDef,
+} from "./ColumnResizer";
+import { usePagination, TablePagination } from "./TablePagination";
+
+const UniversalCatalogImportModal = React.lazy(() =>
+  import("./UniversalCatalogImportModal").then((m) => ({
+    default: m.UniversalCatalogImportModal,
+  }))
+);
+const StockExportModal = React.lazy(() =>
+  import("./StockExportModal").then((m) => ({
+    default: m.StockExportModal,
+  }))
+);
 
 interface InventoryViewProps {
   products: Producto[];
@@ -68,6 +84,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   showToast,
 }) => {
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [showProductModal, setShowProductModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -152,6 +169,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.CAJERO;
   }, [currentUser]);
 
+  const inventoryColumns = useMemo<ColumnDef[]>(() => {
+    const cols: ColumnDef[] = [
+      { key: "codigo", label: "Cód. Barras / Lote", defaultWidth: 135, minWidth: 80, maxWidth: 320 },
+      { key: "nombre", label: "Descripción del Producto", defaultWidth: 280, minWidth: 140, maxWidth: 650 },
+      { key: "categoria", label: "Categoría", defaultWidth: 130, minWidth: 80, maxWidth: 300 },
+      { key: "stock", label: "Stock", defaultWidth: 105, minWidth: 70, maxWidth: 220 },
+      { key: "alicuota", label: "Alícuota IVA", defaultWidth: 110, minWidth: 75, maxWidth: 220 },
+    ];
+    if (permissions.puedeVerCostosYMargenes) {
+      cols.push({ key: "costo", label: "Costo PMP ($/Bs)", defaultWidth: 130, minWidth: 85, maxWidth: 260 });
+    }
+    cols.push({ key: "precio", label: "P. Venta ($/Bs)", defaultWidth: 130, minWidth: 85, maxWidth: 260 });
+    if (permissions.puedeVerCostosYMargenes) {
+      cols.push({ key: "margen", label: "Margen (%)", defaultWidth: 95, minWidth: 65, maxWidth: 200 });
+    }
+    cols.push(
+      { key: "estado", label: "Estado / Vence", defaultWidth: 155, minWidth: 95, maxWidth: 320 },
+      { key: "acciones", label: "Acciones", defaultWidth: 115, minWidth: 80, maxWidth: 220 }
+    );
+    return cols;
+  }, [permissions.puedeVerCostosYMargenes]);
+
+  const colResizer = useResizableColumns("inventory_catalog", inventoryColumns);
+
   // Form states for Product Modal
   const [formCode, setFormCode] = useState("");
   const [formName, setFormName] = useState("");
@@ -162,6 +203,48 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [formMinStock, setFormMinStock] = useState<string>("5");
   const [formUnit, setFormUnit] = useState<string>("Pza");
   const [formAlicuotaIva, setFormAlicuotaIva] = useState<TipoAlicuotaIva>(16);
+  const [formExpirationDate, setFormExpirationDate] = useState<string>("");
+  const [formBatch, setFormBatch] = useState<string>("");
+
+  // Filtro por estado de vencimiento (Punto 6)
+  const [expirationFilter, setExpirationFilter] = useState<"ALL" | "EXPIRED" | "SOON" | "EXPIRED_OR_SOON">("ALL");
+
+  // Helper para evaluar días restantes de vencimiento (Punto 6)
+  const getProductExpiryInfo = (fechaVencimiento?: string): {
+    status: "EXPIRED" | "SOON" | "OK" | "NONE";
+    daysRemaining: number | null;
+    formattedDate: string;
+  } => {
+    if (!fechaVencimiento || !fechaVencimiento.trim()) {
+      return { status: "NONE", daysRemaining: null, formattedDate: "" };
+    }
+    const clean = fechaVencimiento.trim().slice(0, 10);
+    const parts = clean.split("-");
+    if (parts.length !== 3) {
+      return { status: "NONE", daysRemaining: null, formattedDate: clean };
+    }
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const expDate = new Date(year, month, day, 23, 59, 59, 999);
+    if (isNaN(expDate.getTime())) {
+      return { status: "NONE", daysRemaining: null, formattedDate: clean };
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const diffMs = expDate.getTime() - todayStart.getTime();
+    const daysRemaining = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+    if (daysRemaining < 0) {
+      return { status: "EXPIRED", daysRemaining, formattedDate };
+    }
+    if (daysRemaining <= 15) {
+      return { status: "SOON", daysRemaining, formattedDate };
+    }
+    return { status: "OK", daysRemaining, formattedDate };
+  };
 
   // Stock Adjustment Form states
   const [adjType, setAdjType] = useState<"ENTRADA" | "SALIDA" | "AJUSTE">("ENTRADA");
@@ -182,10 +265,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     | "precio_asc"
     | "margen_desc"
     | "margen_asc"
+    | "vencimiento_asc"
     | "recientes"
   >("nombre_asc");
 
-  const handleToggleSortColumn = (field: "codigo" | "nombre" | "stock" | "precio" | "margen") => {
+  const handleToggleSortColumn = (field: "codigo" | "nombre" | "stock" | "precio" | "margen" | "vencimiento") => {
     if (field === "codigo") {
       setSortBy(sortBy === "codigo_asc" ? "codigo_desc" : "codigo_asc");
     } else if (field === "nombre") {
@@ -196,18 +280,35 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       setSortBy(sortBy === "precio_desc" ? "precio_asc" : "precio_desc");
     } else if (field === "margen") {
       setSortBy(sortBy === "margen_desc" ? "margen_asc" : "margen_desc");
+    } else if (field === "vencimiento") {
+      setSortBy(sortBy === "vencimiento_asc" ? "nombre_asc" : "vencimiento_asc");
     }
   };
 
-  // Filtering & Sorting
+  // Filtering & Sorting (usando deferredSearch para no bloquear el hilo UI al teclear)
   const filteredProducts = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
     const list = products.filter((p) => {
       const matchesSearch =
-        p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        p.codigo_barras.toLowerCase().includes(search.toLowerCase());
+        !q ||
+        p.nombre.toLowerCase().includes(q) ||
+        p.codigo_barras.toLowerCase().includes(q) ||
+        (p.lote && p.lote.toLowerCase().includes(q));
       const matchesCat =
         selectedCategory === "ALL" || p.categoria_id.toString() === selectedCategory;
-      return matchesSearch && matchesCat;
+
+      if (!matchesSearch || !matchesCat) return false;
+
+      if (expirationFilter !== "ALL") {
+        const expInfo = getProductExpiryInfo(p.fecha_vencimiento);
+        if (expirationFilter === "EXPIRED" && expInfo.status !== "EXPIRED") return false;
+        if (expirationFilter === "SOON" && expInfo.status !== "SOON") return false;
+        if (expirationFilter === "EXPIRED_OR_SOON" && expInfo.status !== "EXPIRED" && expInfo.status !== "SOON") {
+          return false;
+        }
+      }
+
+      return true;
     });
 
     const getMarginVal = (p: Producto) => {
@@ -237,13 +338,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           return getMarginVal(b) - getMarginVal(a);
         case "margen_asc":
           return getMarginVal(a) - getMarginVal(b);
+        case "vencimiento_asc": {
+          const expA = a.fecha_vencimiento || "9999-12-31";
+          const expB = b.fecha_vencimiento || "9999-12-31";
+          return expA.localeCompare(expB);
+        }
         case "recientes":
           return (b.id || 0) - (a.id || 0);
         default:
           return 0;
       }
     });
-  }, [products, search, selectedCategory, sortBy]);
+  }, [products, deferredSearch, selectedCategory, sortBy, expirationFilter]);
+
+  const pagination = usePagination(filteredProducts, 50, "inventory_catalog");
 
   // Fiscal Statistics & Valuations (LISLR Art. 177 - PMP)
   // Regla estricta: Solo contabilizar productos con stock activo (> 0). Productos sin stock quedan excluidos de la valuación.
@@ -253,9 +361,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     let productsWithStock = 0;
     let totalCostUsd = 0;
     let totalSaleUsd = 0;
+    let expiredCount = 0;
+    let expiringSoonCount = 0;
 
     products.forEach((p) => {
       const stock = typeof p.stock_actual === "number" ? p.stock_actual : 0;
+
+      const expInfo = getProductExpiryInfo(p.fecha_vencimiento);
+      if (expInfo.status === "EXPIRED") expiredCount++;
+      else if (expInfo.status === "SOON") expiringSoonCount++;
 
       // Si no tiene stock (<= 0), no contabilizar en la valuación de inventario
       if (stock <= 0) {
@@ -288,6 +402,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       totalSaleUsd,
       totalCostVes,
       totalSaleVes,
+      expiredCount,
+      expiringSoonCount,
     };
   }, [products, bcvRate]);
 
@@ -302,6 +418,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setFormMinStock("5");
     setFormUnit("Pza");
     setFormAlicuotaIva(16);
+    setFormExpirationDate("");
+    setFormBatch("");
     setShowProductModal(true);
   };
 
@@ -316,6 +434,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setFormMinStock((p.stock_minimo ?? 5).toString());
     setFormUnit(p.unidad_medida || "Pza");
     setFormAlicuotaIva((p.alicuota_iva === 0 ? 0 : 16) as TipoAlicuotaIva);
+    setFormExpirationDate(p.fecha_vencimiento || "");
+    setFormBatch(p.lote || "");
     setShowProductModal(true);
   };
 
@@ -346,6 +466,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           stock_minimo: minNum,
           unidad_medida: formUnit,
           alicuota_iva: formAlicuotaIva,
+          fecha_vencimiento: formExpirationDate.trim() || undefined,
+          lote: formBatch.trim() || undefined,
         },
         editingProduct.codigo_barras,
         editingProduct.id
@@ -364,6 +486,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         unidad_medida: formUnit,
         alicuota_iva: formAlicuotaIva,
         fecha_registro: new Date().toISOString().slice(0, 19).replace("T", " "),
+        fecha_vencimiento: formExpirationDate.trim() || undefined,
+        lote: formBatch.trim() || undefined,
       });
     }
 
@@ -642,6 +766,88 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       </div>
 
+      {/* Banner de Alertas de Vencimiento y Lotes (Punto 6) */}
+      {(stats.expiredCount > 0 || stats.expiringSoonCount > 0 || expirationFilter !== "ALL") && (
+        <div
+          className={`rounded-xl p-3 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition-all ${
+            stats.expiredCount > 0
+              ? "bg-rose-950/30 border-rose-500/40 text-rose-200"
+              : "bg-amber-950/30 border-amber-500/40 text-amber-200"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle
+              className={`w-5 h-5 shrink-0 ${
+                stats.expiredCount > 0 ? "text-rose-400 animate-pulse" : "text-amber-400"
+              }`}
+            />
+            <div>
+              <span className="font-bold block sm:inline">
+                Control de Lotes y Fechas de Vencimiento:
+              </span>{" "}
+              <span className="text-slate-300">
+                {stats.expiredCount > 0 && (
+                  <strong className="text-rose-400 mr-2">
+                    • {stats.expiredCount} {stats.expiredCount === 1 ? "producto VENCIDO" : "productos VENCIDOS"}
+                  </strong>
+                )}
+                {stats.expiringSoonCount > 0 && (
+                  <strong className="text-amber-300">
+                    • {stats.expiringSoonCount}{" "}
+                    {stats.expiringSoonCount === 1
+                      ? "producto próximo a vencer (≤ 15 días)"
+                      : "productos próximos a vencer (≤ 15 días)"}
+                  </strong>
+                )}
+                {stats.expiredCount === 0 && stats.expiringSoonCount === 0 && (
+                  <span>Filtro de vencimiento activo</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setExpirationFilter(expirationFilter === "EXPIRED" ? "ALL" : "EXPIRED");
+                setSortBy("vencimiento_asc");
+              }}
+              className={`px-2.5 py-1 rounded-lg font-mono font-bold text-[11px] border transition-all cursor-pointer ${
+                expirationFilter === "EXPIRED"
+                  ? "bg-rose-600 text-white border-rose-400 shadow"
+                  : "bg-rose-950/60 text-rose-300 border-rose-800/60 hover:bg-rose-900/50"
+              }`}
+            >
+              Vencidos ({stats.expiredCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setExpirationFilter(expirationFilter === "SOON" ? "ALL" : "SOON");
+                setSortBy("vencimiento_asc");
+              }}
+              className={`px-2.5 py-1 rounded-lg font-mono font-bold text-[11px] border transition-all cursor-pointer ${
+                expirationFilter === "SOON"
+                  ? "bg-amber-500 text-slate-950 border-amber-300 shadow"
+                  : "bg-amber-950/60 text-amber-300 border-amber-800/60 hover:bg-amber-900/50"
+              }`}
+            >
+              Por Vencer ≤15d ({stats.expiringSoonCount})
+            </button>
+            {expirationFilter !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => setExpirationFilter("ALL")}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold cursor-pointer"
+              >
+                Ver Todos
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Control Bar: Search, Category Filter, and Actions */}
       <div className="bg-[#1a1d24] border border-slate-800 rounded-xl p-3 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
         {/* Filtros de búsqueda, categoría, orden y vista */}
@@ -650,7 +856,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Buscar por descripción o código de barras..."
+              placeholder="Buscar por descripción, código o lote..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-[#12141a] border border-slate-700/80 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-mono"
@@ -686,6 +892,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <option value="nombre_desc">🔤 Nombre: Z ➔ A</option>
               <option value="stock_desc">📦 Stock: Mayor a Menor</option>
               <option value="stock_asc">⚠️ Stock: Menor a Mayor (Agotados)</option>
+              <option value="vencimiento_asc">📅 Vencimiento: Más Próximos Primero</option>
               <option value="codigo_asc">🏷️ Cód. Barras: 0 ➔ 9</option>
               <option value="codigo_desc">🏷️ Cód. Barras: 9 ➔ 0</option>
               <option value="precio_desc">💰 Precio: Mayor a Menor</option>
@@ -763,23 +970,36 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
       {/* Products Table with Fiscal Fields */}
       <div className="bg-[#1a1d24] border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto max-h-[660px] overflow-y-auto overscroll-contain">
-          <table className="w-full text-left text-xs text-slate-300">
+        <ColumnConfiguratorToolbar
+          controller={colResizer}
+          title="Configurar Tamaño de Columnas • Catálogo de Inventario"
+        />
+        <div className="overflow-x-auto max-h-[660px] overflow-y-auto overscroll-auto">
+          <table
+            data-resizable-table={colResizer.tableId}
+            className="w-full text-left text-xs text-slate-300"
+          >
             <thead className="bg-[#13151b] text-slate-400 border-b border-slate-800 uppercase font-mono text-[11px] sticky top-0 z-10 shadow-md">
               <tr>
                 <th
+                  data-col="codigo"
                   onClick={() => handleToggleSortColumn("codigo")}
-                  className="py-3 px-3 cursor-pointer hover:text-white select-none transition-colors"
+                  className="py-3 px-3 cursor-pointer hover:text-white select-none transition-colors relative"
                   title="Clic para alternar orden por Código de Barras"
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 pr-2">
                     <span>Cód. Barras</span>
                     {sortBy === "codigo_asc" && <ArrowUp className="w-3 h-3 text-amber-400" />}
                     {sortBy === "codigo_desc" && <ArrowDown className="w-3 h-3 text-amber-400" />}
                   </div>
+                  <ColumnResizeHandle
+                    colKey="codigo"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
                 </th>
-                <th className="py-3 px-3">
-                  <div className="flex items-center justify-between gap-1">
+                <th data-col="nombre" className="py-3 px-3 relative">
+                  <div className="flex items-center justify-between gap-1 pr-2">
                     <div
                       onClick={() => handleToggleSortColumn("nombre")}
                       className="flex items-center gap-1 cursor-pointer hover:text-white select-none transition-colors"
@@ -806,49 +1026,115 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       <span>{showFullNames ? "Completo" : "Expandir"}</span>
                     </button>
                   </div>
+                  <ColumnResizeHandle
+                    colKey="nombre"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
                 </th>
-                <th className="py-3 px-3">Categoría</th>
+                <th data-col="categoria" className="py-3 px-3 relative">
+                  <span className="pr-2">Categoría</span>
+                  <ColumnResizeHandle
+                    colKey="categoria"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
                 <th
+                  data-col="stock"
                   onClick={() => handleToggleSortColumn("stock")}
-                  className="py-3 px-3 text-center cursor-pointer hover:text-white select-none transition-colors"
+                  className="py-3 px-3 text-center cursor-pointer hover:text-white select-none transition-colors relative"
                   title="Clic para alternar orden por Stock"
                 >
-                  <div className="flex items-center justify-center gap-1">
+                  <div className="flex items-center justify-center gap-1 pr-2">
                     <span>Stock</span>
                     {sortBy === "stock_desc" && <ArrowDown className="w-3 h-3 text-amber-400" />}
                     {sortBy === "stock_asc" && <ArrowUp className="w-3 h-3 text-amber-400" />}
                   </div>
+                  <ColumnResizeHandle
+                    colKey="stock"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
                 </th>
-                <th className="py-3 px-3 text-center">Alícuota</th>
+                <th data-col="alicuota" className="py-3 px-3 text-center relative">
+                  <span className="pr-2">Alícuota</span>
+                  <ColumnResizeHandle
+                    colKey="alicuota"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
                 {permissions.puedeVerCostosYMargenes && (
-                  <th className="py-3 px-3 text-right">Costo PMP ($/Bs)</th>
+                  <th data-col="costo" className="py-3 px-3 text-right relative">
+                    <span className="pr-2">Costo PMP ($/Bs)</span>
+                    <ColumnResizeHandle
+                      colKey="costo"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
                 )}
                 <th
+                  data-col="precio"
                   onClick={() => handleToggleSortColumn("precio")}
-                  className="py-3 px-3 text-right cursor-pointer hover:text-white select-none transition-colors"
+                  className="py-3 px-3 text-right cursor-pointer hover:text-white select-none transition-colors relative"
                   title="Clic para alternar orden por Precio de Venta"
                 >
-                  <div className="flex items-center justify-end gap-1">
+                  <div className="flex items-center justify-end gap-1 pr-2">
                     <span>P. Venta ($/Bs)</span>
                     {sortBy === "precio_desc" && <ArrowDown className="w-3 h-3 text-amber-400" />}
                     {sortBy === "precio_asc" && <ArrowUp className="w-3 h-3 text-amber-400" />}
                   </div>
+                  <ColumnResizeHandle
+                    colKey="precio"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
                 </th>
                 {permissions.puedeVerCostosYMargenes && (
                   <th
+                    data-col="margen"
                     onClick={() => handleToggleSortColumn("margen")}
-                    className="py-3 px-3 text-center cursor-pointer hover:text-white select-none transition-colors"
+                    className="py-3 px-3 text-center cursor-pointer hover:text-white select-none transition-colors relative"
                     title="Clic para alternar orden por Margen"
                   >
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-center gap-1 pr-2">
                       <span>Margen</span>
                       {sortBy === "margen_desc" && <ArrowDown className="w-3 h-3 text-amber-400" />}
                       {sortBy === "margen_asc" && <ArrowUp className="w-3 h-3 text-amber-400" />}
                     </div>
+                    <ColumnResizeHandle
+                      colKey="margen"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
                   </th>
                 )}
-                <th className="py-3 px-3 text-center">Estado</th>
-                <th className="py-3 px-3 text-center">Acciones</th>
+                <th
+                  data-col="estado"
+                  onClick={() => handleToggleSortColumn("vencimiento")}
+                  className="py-3 px-3 text-center cursor-pointer hover:text-white select-none transition-colors relative"
+                  title="Clic para ordenar por Fecha de Vencimiento más próxima"
+                >
+                  <div className="flex items-center justify-center gap-1 pr-2">
+                    <span>Estado / Vence</span>
+                    {sortBy === "vencimiento_asc" && <ArrowUp className="w-3 h-3 text-amber-400" />}
+                  </div>
+                  <ColumnResizeHandle
+                    colKey="estado"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="acciones" className="py-3 px-3 text-center relative">
+                  <span className="pr-2">Acciones</span>
+                  <ColumnResizeHandle
+                    colKey="acciones"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -859,7 +1145,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p) => {
+                pagination.paginatedItems.map((p) => {
                   const isOutOfStock = p.stock_actual <= 0;
                   const isLowStock = !isOutOfStock && p.stock_actual <= p.stock_minimo;
                   const currentPmp = p.costo_promedio_ponderado || p.precio_costo;
@@ -870,23 +1156,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
                   const costVes = currentPmp * bcvRate;
                   const saleVes = p.precio_venta * bcvRate;
+                  const expInfo = getProductExpiryInfo(p.fecha_vencimiento);
 
                   return (
                     <tr key={`prod-row-${p.id}-${p.codigo_barras || ""}`} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 px-3 font-mono text-slate-400 select-all text-[11px]">
-                        {p.codigo_barras || "N/A"}
+                      <td data-col="codigo" className="py-3 px-3 font-mono text-slate-400 select-all text-[11px] truncate">
+                        <div className="truncate">{p.codigo_barras || "N/A"}</div>
+                        {p.lote && (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-slate-800/90 text-slate-300 border border-slate-700 text-[9.5px] font-mono">
+                            Lote: {p.lote}
+                          </span>
+                        )}
                       </td>
                       {/* Descripción con soporte para ver nombres largos completos */}
                       {(() => {
-                        const isExpanded = showFullNames || !!expandedProductIds[p.id];
+                        const isExpanded = showFullNames || colResizer.wrapText || !!expandedProductIds[p.id];
                         const isLongName = (p.nombre || "").length > 25;
 
                         return (
                           <td
+                            data-col="nombre"
                             className={`py-3 px-3 transition-all ${
                               isExpanded
-                                ? "whitespace-normal break-words min-w-[240px] max-w-sm sm:max-w-md"
-                                : "max-w-xs truncate"
+                                ? "whitespace-normal break-words"
+                                : "truncate"
                             }`}
                           >
                             <div className="flex items-start justify-between gap-1.5 group">
@@ -911,7 +1204,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                               </span>
 
                               <div className="flex items-center gap-1 shrink-0 ml-1">
-                                {isLongName && !showFullNames && (
+                                {isLongName && !showFullNames && !colResizer.wrapText && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -949,12 +1242,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           </td>
                         );
                       })()}
-                      <td className="py-3 px-3">
+                      <td data-col="categoria" className="py-3 px-3 truncate">
                         <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[11px] border border-slate-700/60">
                           {p.categoria_nombre || "General"}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td data-col="stock" className="py-3 px-3 text-center">
                         <button
                           type="button"
                           onClick={() => {
@@ -984,7 +1277,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           )}
                         </button>
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td data-col="alicuota" className="py-3 px-3 text-center">
                         <span
                           className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
                             p.alicuota_iva === 0
@@ -996,36 +1289,60 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         </span>
                       </td>
                       {permissions.puedeVerCostosYMargenes && (
-                        <td className="py-3 px-3 text-right font-mono">
+                        <td data-col="costo" className="py-3 px-3 text-right font-mono">
                           <div className="text-slate-300">${currentPmp.toFixed(2)}</div>
                           <div className="text-[10px] text-slate-500">Bs. {costVes.toFixed(2)}</div>
                         </td>
                       )}
-                      <td className="py-3 px-3 text-right font-mono font-bold">
+                      <td data-col="precio" className="py-3 px-3 text-right font-mono font-bold">
                         <div className="text-white">${p.precio_venta.toFixed(2)}</div>
                         <div className="text-[10px] text-amber-400">Bs. {saleVes.toFixed(2)}</div>
                       </td>
                       {permissions.puedeVerCostosYMargenes && (
-                        <td className="py-3 px-3 text-center font-mono text-blue-400 font-semibold">
+                        <td data-col="margen" className="py-3 px-3 text-center font-mono text-blue-400 font-semibold">
                           {marginPercent}%
                         </td>
                       )}
-                      <td className="py-3 px-3 text-center">
-                        {isOutOfStock ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950/60 text-rose-400 border border-rose-800/60">
-                            <XCircle className="w-3 h-3" /> Agotado
-                          </span>
-                        ) : isLowStock ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-400 border border-amber-800/60">
-                            <AlertTriangle className="w-3 h-3" /> Bajo Stock
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
-                            <CheckCircle2 className="w-3 h-3" /> Óptimo
-                          </span>
-                        )}
+                      <td data-col="estado" className="py-3 px-3 text-center">
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          {isOutOfStock ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950/60 text-rose-400 border border-rose-800/60">
+                              <XCircle className="w-3 h-3" /> Agotado
+                            </span>
+                          ) : isLowStock ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-400 border border-amber-800/60">
+                              <AlertTriangle className="w-3 h-3" /> Bajo Stock
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
+                              <CheckCircle2 className="w-3 h-3" /> Óptimo
+                            </span>
+                          )}
+
+                          {expInfo.status === "EXPIRED" && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-500/60"
+                              title={`Producto vencido el ${expInfo.formattedDate}`}
+                            >
+                              ⚠️ VENCIDO ({expInfo.formattedDate})
+                            </span>
+                          )}
+                          {expInfo.status === "SOON" && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/60"
+                              title={`Vence en ${expInfo.daysRemaining} días (${expInfo.formattedDate})`}
+                            >
+                              ⏳ Vence en {expInfo.daysRemaining}d ({expInfo.formattedDate})
+                            </span>
+                          )}
+                          {expInfo.status === "OK" && (
+                            <span className="text-[9.5px] font-mono text-slate-400">
+                              Vence: {expInfo.formattedDate}
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="py-3 px-3 text-center">
+                      <td data-col="acciones" className="py-3 px-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           {permissions.puedeAjustarStockManual && (
                             <button
@@ -1066,6 +1383,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={pagination.currentPage}
+          pageSize={pagination.pageSize}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          startIndex={pagination.startIndex}
+          endIndex={pagination.endIndex}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+          itemLabel="productos"
+        />
       </div>
 
       {/* Modal: New / Edit Product with Venezuelan Fiscal Attributes */}
@@ -1237,6 +1565,33 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     value={formMinStock}
                     onChange={(e) => setFormMinStock(e.target.value)}
                     className="w-full bg-[#111317] border border-slate-700 rounded-lg px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Control de Lote y Fecha de Vencimiento (Punto 6) */}
+              <div className="grid grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-[#12141a] border border-slate-800">
+                <div>
+                  <label className="block text-amber-300 font-semibold mb-1 text-[11px]">
+                    📅 Fecha Vencimiento (Opcional):
+                  </label>
+                  <input
+                    type="date"
+                    value={formExpirationDate}
+                    onChange={(e) => setFormExpirationDate(e.target.value)}
+                    className="w-full bg-[#181a20] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1 text-[11px]">
+                    🏷️ N° Lote / Pasillo (Opcional):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: L-2026-09"
+                    value={formBatch}
+                    onChange={(e) => setFormBatch(e.target.value)}
+                    className="w-full bg-[#181a20] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -1759,41 +2114,45 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
       {/* Modal de Importación & Migración Masiva desde Excel / CSV (Saint, A2) */}
       {showImportModal && (
-        <UniversalCatalogImportModal
-          isOpen={showImportModal}
-          onClose={() => setShowImportModal(false)}
-          products={products}
-          categories={categories}
-          bcvRate={bcvRate}
-          showToast={showToast || (() => {})}
-          onImportSuccess={(newProds, newCats) => {
-            if (onBatchImportProducts) {
-              onBatchImportProducts(newProds, newCats);
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <UniversalCatalogImportModal
+            isOpen={showImportModal}
+            onClose={() => setShowImportModal(false)}
+            products={products}
+            categories={categories}
+            bcvRate={bcvRate}
+            showToast={showToast || (() => {})}
+            onImportSuccess={(newProds, newCats) => {
+              if (onBatchImportProducts) {
+                onBatchImportProducts(newProds, newCats);
+              }
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Modal de Exportación de Stock Detallado (Opción 1) */}
       {showExportModal && (
-        <StockExportModal
-          isOpen={showExportModal}
-          onClose={() => setShowExportModal(false)}
-          products={products}
-          filteredProducts={filteredProducts}
-          categories={categories}
-          bcvRate={bcvRate}
-          isValuationUnlocked={isValuationUnlocked}
-          onUnlockValuation={() => setIsValuationUnlocked(true)}
-          permissions={permissions}
-          showToast={showToast}
-          currentSearchTerm={search}
-          currentCategoryName={
-            selectedCategory !== "ALL"
-              ? categories.find((c) => c.id.toString() === selectedCategory)?.nombre
-              : undefined
-          }
-        />
+        <Suspense fallback={null}>
+          <StockExportModal
+            isOpen={showExportModal}
+            onClose={() => setShowExportModal(false)}
+            products={products}
+            filteredProducts={filteredProducts}
+            categories={categories}
+            bcvRate={bcvRate}
+            isValuationUnlocked={isValuationUnlocked}
+            onUnlockValuation={() => setIsValuationUnlocked(true)}
+            permissions={permissions}
+            showToast={showToast}
+            currentSearchTerm={search}
+            currentCategoryName={
+              selectedCategory !== "ALL"
+                ? categories.find((c) => c.id.toString() === selectedCategory)?.nombre
+                : undefined
+            }
+          />
+        </Suspense>
       )}
     </div>
   );

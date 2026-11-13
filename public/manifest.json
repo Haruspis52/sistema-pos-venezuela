@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Sistema POS & Facturación Venezuela",
-  "short_name": "POS Venezuela",
-  "description": "Sistema de Inventario, Punto de Venta y Facturación Fiscal para Comercios en Venezuela (SENIAT / Node.js).",
+  "name": "FaradayPOS — Inventario & Facturación Venezuela",
+  "short_name": "FaradayPOS",
+  "description": "FaradayPOS: Sistema de Inventario, Punto de Venta y Facturación Fiscal para Comercios en Venezuela.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

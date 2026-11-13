@@ -27,7 +27,7 @@ export const AppIconModal: React.FC<AppIconModalProps> = ({
 
   if (!isOpen) return null;
 
-  const iconUrl = "/app_icon.jpg";
+  const iconUrl = "/src/assets/images/faraday_pos_dark_icon_1794172646016.jpg";
 
   const handleDownload = (filename: string) => {
     const link = document.createElement("a");
@@ -62,9 +62,9 @@ export const AppIconModal: React.FC<AppIconModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                Ícono Oficial del Sistema POS
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  Render 3D HD
+                Ícono Oficial de FaradayPOS
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30">
+                  Minimalista Pastel
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
@@ -109,19 +109,19 @@ export const AppIconModal: React.FC<AppIconModalProps> = ({
                 <div className="flex items-center gap-4">
                   <div className="flex flex-col items-center gap-1">
                     <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-700 shadow-md">
-                      <img src={iconUrl} alt="48px" className="w-full h-full object-cover" />
+                      <img src={iconUrl} alt="48px" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
                     <span className="text-[10px] text-slate-500 font-mono">48px</span>
                   </div>
                   <div className="flex flex-col items-center gap-1">
                     <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-700 shadow-sm">
-                      <img src={iconUrl} alt="32px" className="w-full h-full object-cover" />
+                      <img src={iconUrl} alt="32px" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
                     <span className="text-[10px] text-slate-500 font-mono">32px</span>
                   </div>
                   <div className="flex flex-col items-center gap-1">
                     <div className="w-5 h-5 rounded-md overflow-hidden border border-slate-700 shadow-sm">
-                      <img src={iconUrl} alt="16px" className="w-full h-full object-cover" />
+                      <img src={iconUrl} alt="16px" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
                     <span className="text-[10px] text-slate-500 font-mono">16px</span>
                   </div>
@@ -219,7 +219,7 @@ export const AppIconModal: React.FC<AppIconModalProps> = ({
               <li>Descargue el archivo <strong>app_icon.ico</strong> usando el botón superior.</li>
               <li>Haga clic derecho en su escritorio → <strong>Nuevo → Acceso directo</strong>.</li>
               <li>Escriba la dirección del servidor: <code className="text-amber-300 font-mono">http://localhost:3000</code></li>
-              <li>Nombre el acceso directo como <strong>"Punto de Venta POS"</strong>.</li>
+              <li>Nombre el acceso directo como <strong>"FaradayPOS"</strong>.</li>
               <li>Haga clic derecho en el acceso directo creado → <strong>Propiedades → Cambiar icono...</strong></li>
               <li>Seleccione el archivo <code className="text-emerald-300 font-mono">app_icon.ico</code> descargado y haga clic en Aceptar.</li>
             </ol>

@@ -35,10 +35,17 @@ import {
   getStoredUsers,
   saveStoredUsers,
   saveStoredCurrentUser,
-  isFiscalEditionUnlocked,
   unlockFiscalEdition,
+  revokeFiscalEdition,
+  parseContractedEdition,
+  getCuotaMensualPorEdicion,
 } from "../mockDb";
-import { verifyLicenseOnline, autoRegisterBusinessInFirestore } from "../services/licenseService";
+import {
+  verifyLicenseOnline,
+  autoRegisterBusinessInFirestore,
+  getTodayDateStr,
+  getOneMonthExpiryFromToday,
+} from "../services/licenseService";
 
 interface InitialSetupModalProps {
   isOpen: boolean;
@@ -69,32 +76,18 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [selectedEdition, setSelectedEdition] = useState<"bodega" | "fiscal">(initialEdition);
   const [selectedPosMode, setSelectedPosMode] = useState<PosOperationalMode>(initialPosMode);
+  const [unlockedWithMasterCode, setUnlockedWithMasterCode] = useState<boolean>(false);
 
-  // Estado del Client ID y Validación de Licencia Remota
-  const [clienteId, setClienteId] = useState<string>(() => {
-    const lic = getRemoteLicense();
-    return lic.cliente_id && lic.cliente_id !== "CLI-001" ? lic.cliente_id : "";
-  });
+  // Estado del Client ID y Validación de Licencia Remota (inicia vacío por defecto)
+  const [clienteId, setClienteId] = useState<string>("");
   const [isCheckingLicense, setIsCheckingLicense] = useState<boolean>(false);
   const [licenseResult, setLicenseResult] = useState<{
     valid: boolean;
     message: string;
     license?: RemoteClientLicense;
-  } | null>(() => {
-    const lic = getRemoteLicense();
-    if (lic && lic.cliente_id && lic.cliente_id !== "CLI-001" && lic.estado_remoto === "ACTIVO") {
-      return {
-        valid: true,
-        message: `Licencia activa en equipo. Válida hasta ${lic.fecha_vencimiento_actual}.`,
-        license: lic,
-      };
-    }
-    return null;
-  });
-  const [isLicenseValidated, setIsLicenseValidated] = useState<boolean>(() => {
-    const lic = getRemoteLicense();
-    return Boolean(lic && lic.cliente_id && lic.cliente_id !== "CLI-001" && lic.estado_remoto === "ACTIVO");
-  });
+    datosInscritos?: boolean;
+  } | null>(null);
+  const [isLicenseValidated, setIsLicenseValidated] = useState<boolean>(false);
 
   // Estado de Seguridad y PIN
   const [adminPin, setAdminPin] = useState<string>(() => {
@@ -109,6 +102,7 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
   });
   const [showPinText, setShowPinText] = useState<boolean>(false);
   const [showFiscalCodePrompt, setShowFiscalCodePrompt] = useState<boolean>(false);
+  const [targetSetupEdition, setTargetSetupEdition] = useState<"bodega" | "fiscal">("fiscal");
   const [fiscalCodeInput, setFiscalCodeInput] = useState<string>("");
 
   // Estado de Datos del Negocio (el cliente los introduce directamente)
@@ -140,23 +134,52 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
     try {
       const res = await verifyLicenseOnline(clean);
       if (res.valid && res.license) {
+        const contracted = parseContractedEdition(res.license.edicion_contratada);
+        const normalizedLic: RemoteClientLicense = {
+          ...res.license,
+          edicion_contratada: contracted,
+        };
+        const yaInscritos = Boolean(res.datosInscritos);
+
         setIsLicenseValidated(true);
         setLicenseResult({
           valid: true,
           message: res.message,
-          license: res.license,
+          license: normalizedLic,
+          datosInscritos: yaInscritos,
         });
-        saveRemoteLicense(res.license);
-        if (res.license.edicion_contratada) {
-          setSelectedEdition(res.license.edicion_contratada);
+        saveRemoteLicense(normalizedLic);
+        setUnlockedWithMasterCode(false);
+        if (contracted === "bodega") {
+          revokeFiscalEdition();
+          setSelectedEdition("bodega");
+        } else if (contracted === "fiscal") {
+          setSelectedEdition("fiscal");
         }
-        showToast("✅ ¡Licencia validada exitosamente!");
+
+        // Si la licencia ya tiene todos los datos del comercio inscritos en el sistema, cargarlos automáticamente
+        if (yaInscritos) {
+          const loadedConfig: NegocioClienteConfig = {
+            ...config,
+            nombreComercial: normalizedLic.nombre_negocio || config.nombreComercial,
+            razonSocial: normalizedLic.nombre_negocio || config.razonSocial,
+            rif: normalizedLic.rif_cedula || config.rif,
+            telefono: normalizedLic.telefono_contacto || config.telefono,
+            whatsappCobros: normalizedLic.telefono_contacto || config.whatsappCobros,
+          };
+          setConfig(loadedConfig);
+          saveStoredNegocioConfig(loadedConfig);
+          showToast("✅ ¡Licencia verificada y datos del comercio cargados automáticamente!");
+        } else {
+          showToast("✅ ¡Licencia validada exitosamente!");
+        }
       } else {
         setIsLicenseValidated(false);
         setLicenseResult({
           valid: false,
           message: res.message || "Licencia no válida o inactiva.",
           license: res.license,
+          datosInscritos: false,
         });
         showToast("❌ " + (res.message || "Código de licencia no válido."));
       }
@@ -172,10 +195,36 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
     }
   };
 
+  const handleSelectBodegaEdition = () => {
+    const contractedEdition = parseContractedEdition(
+      licenseResult?.license?.edicion_contratada || getRemoteLicense().edicion_contratada
+    );
+    if (
+      contractedEdition === "bodega" ||
+      contractedEdition === "ambas" ||
+      unlockedWithMasterCode
+    ) {
+      setSelectedEdition("bodega");
+    } else {
+      setTargetSetupEdition("bodega");
+      setShowFiscalCodePrompt(true);
+      setFiscalCodeInput("");
+    }
+  };
+
   const handleSelectFiscalEdition = () => {
-    if (isFiscalEditionUnlocked()) {
+    const contractedEdition = parseContractedEdition(
+      licenseResult?.license?.edicion_contratada || getRemoteLicense().edicion_contratada
+    );
+    if (
+      contractedEdition === "fiscal" ||
+      contractedEdition === "ambas" ||
+      unlockedWithMasterCode
+    ) {
       setSelectedEdition("fiscal");
     } else {
+      revokeFiscalEdition();
+      setTargetSetupEdition("fiscal");
       setShowFiscalCodePrompt(true);
       setFiscalCodeInput("");
     }
@@ -184,17 +233,26 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
   const handleValidateFiscalCodeInSetup = () => {
     const clean = fiscalCodeInput.trim();
     if (!clean) {
-      showToast("❌ Ingrese el código de activación fiscal.");
+      showToast(
+        targetSetupEdition === "fiscal"
+          ? "❌ Introduzca el Código de activación para la Edición Fiscal"
+          : "❌ Introduzca el Código de activación para la Edición Bodega"
+      );
       return;
     }
-    const res = unlockFiscalEdition(clean);
+    const res = unlockFiscalEdition(clean, targetSetupEdition);
     if (res.success) {
-      setSelectedEdition("fiscal");
+      setUnlockedWithMasterCode(true);
+      setSelectedEdition(targetSetupEdition);
       setShowFiscalCodePrompt(false);
       setFiscalCodeInput("");
-      showToast("✅ Edición Fiscal SENIAT activada con código maestro.");
+      showToast(
+        targetSetupEdition === "fiscal"
+          ? "✅ Edición Fiscal SENIAT activada."
+          : "✅ Edición Bodega y Mostrador activada."
+      );
     } else {
-      showToast("❌ Código incorrecto. Ingrese el código de administración autorizado.");
+      showToast("❌ Código incorrecto. Verifique el código de activación.");
       setFiscalCodeInput("");
     }
   };
@@ -234,10 +292,24 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
 
     const currentLic = getRemoteLicense();
     const finalClienteId = (currentLic?.cliente_id || clienteId).trim() || "CLI-001";
+    const contractedEdition = parseContractedEdition(
+      licenseResult?.license?.edicion_contratada || currentLic.edicion_contratada || "bodega"
+    );
+
+    // Determinar la edición activa inicial según la licencia en Firebase
+    let finalActiveEdition: "bodega" | "fiscal" = selectedEdition;
+    if (!unlockedWithMasterCode && contractedEdition !== "ambas") {
+      finalActiveEdition = contractedEdition;
+    }
+
+    const finalContractedEdition =
+      unlockedWithMasterCode || contractedEdition === "ambas"
+        ? "ambas"
+        : finalActiveEdition;
 
     // 1. Guardar preferencias comerciales en almacenamiento local
     saveStoredNegocioConfig(config);
-    saveAppEdition(selectedEdition);
+    saveAppEdition(finalActiveEdition);
     savePosOperationalMode(selectedPosMode);
 
     // 2. Actualizar credenciales del usuario Administrador
@@ -252,17 +324,24 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
       saveStoredCurrentUser(users[adminIdx]);
     }
 
-    // 3. Guardar estado de licencia en almacenamiento local
+    // 3. Calcular fecha de instalación (hoy), fecha de vencimiento (1 mes) y cuota mensual ($15 Bodega / $25 Fiscal / $35 Ambas)
+    const fechaInstalacionHoy = getTodayDateStr();
+    const fechaVencimientoUnMes = getOneMonthExpiryFromToday();
+    const cuotaMensualUsd = getCuotaMensualPorEdicion(finalContractedEdition);
+
     saveRemoteLicense({
       ...currentLic,
       cliente_id: finalClienteId,
       nombre_negocio: config.nombreComercial,
       rif_cedula: config.rif,
       telefono_contacto: config.telefono,
-      edicion_contratada: selectedEdition,
+      edicion_contratada: finalContractedEdition,
+      cuota_mensual_usd: cuotaMensualUsd,
+      fecha_instalacion: fechaInstalacionHoy,
+      fecha_vencimiento_actual: fechaVencimientoUnMes,
     });
 
-    // 4. Registrar automáticamente los datos del negocio en Firebase Firestore
+    // 4. Registrar automáticamente los datos del negocio, cuota_mensual_usd y fecha_vencimiento_actual en Firebase Firestore
     // Nota: Excluye expresamente 'direccion_fiscal' por requerimiento.
     try {
       const fbRes = await autoRegisterBusinessInFirestore({
@@ -270,17 +349,23 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
         nombreNegocio: config.nombreComercial,
         rifCedula: config.rif,
         telefonoContacto: config.telefono,
-        edicionContratada: selectedEdition,
+        edicionContratada: finalContractedEdition,
+        cuotaMensualUsd,
+        fechaInstalacion: fechaInstalacionHoy,
+        fechaVencimientoActual: fechaVencimientoUnMes,
+        forceEditionUpgrade: unlockedWithMasterCode,
       });
       if (fbRes.success) {
-        console.log("[InitialSetup] Datos comerciales registrados en Firebase Firestore.");
+        console.log("[InitialSetup] Datos comerciales, cuota_mensual_usd y fecha_vencimiento_actual registrados en Firebase Firestore.");
       }
     } catch (err) {
       console.warn("[InitialSetup] Error registrando datos en Firebase:", err);
     }
 
-    onComplete(config, selectedEdition, selectedPosMode);
-    showToast(`✅ ¡Configuración inicial guardada para "${config.nombreComercial}"!`);
+    onComplete(config, finalActiveEdition, selectedPosMode);
+    showToast(
+      `✅ ¡Configuración guardada para "${config.nombreComercial}"! Vigencia activa hasta ${fechaVencimientoUnMes}.`
+    );
     onClose();
   };
 
@@ -297,7 +382,7 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
-                    Bienvenido a su Sistema POS Venezuela
+                    Bienvenido a FaradayPOS
                   </h2>
                   <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-600/50">
                     Activación & Configuración
@@ -495,40 +580,89 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
                       </p>
 
                       {licenseResult.valid && licenseResult.license && (
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-800/40 font-mono text-[11px]">
-                          <div>
-                            <span className="text-slate-400">Client ID: </span>
-                            <strong className="text-white">{licenseResult.license.cliente_id}</strong>
+                        <div className="space-y-2 pt-2 border-t border-emerald-800/40 font-mono text-[11px]">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <span className="text-slate-400">Client ID: </span>
+                              <strong className="text-white">{licenseResult.license.cliente_id}</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">Estado: </span>
+                              <span className="text-emerald-400 font-bold">🟢 ACTIVO</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">Válida hasta: </span>
+                              <strong className="text-amber-300">{licenseResult.license.fecha_vencimiento_actual}</strong>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">Edición: </span>
+                              <strong className="text-blue-300 uppercase">
+                                {licenseResult.license.edicion_contratada === "ambas"
+                                  ? "Bodega + Fiscal (Ambas)"
+                                  : licenseResult.license.edicion_contratada === "fiscal"
+                                  ? "Fiscal SENIAT"
+                                  : "Bodega & Mostrador"}
+                              </strong>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-slate-400">Estado: </span>
-                            <span className="text-emerald-400 font-bold">🟢 ACTIVO</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Válida hasta: </span>
-                            <strong className="text-amber-300">{licenseResult.license.fecha_vencimiento_actual}</strong>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Edición: </span>
-                            <strong className="text-blue-300 uppercase">
-                              {licenseResult.license.edicion_contratada === "fiscal" ? "Fiscal SENIAT" : "Bodega & Mostrador"}
-                            </strong>
-                          </div>
+
+                          {licenseResult.datosInscritos && (
+                            <div className="p-2.5 rounded-xl bg-emerald-900/30 border border-emerald-500/40 space-y-1">
+                              <div className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5 font-sans">
+                                <BadgeCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                                <span>Datos del comercio ya inscritos en el sistema:</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
+                                <div>
+                                  <span className="text-slate-400">Comercio: </span>
+                                  <strong className="text-white">{licenseResult.license.nombre_negocio}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400">RIF: </span>
+                                  <strong className="text-amber-300">{licenseResult.license.rif_cedula}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400">Teléfono: </span>
+                                  <strong className="text-slate-200">{licenseResult.license.telefono_contacto}</strong>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   </div>
 
                   {licenseResult.valid && (
-                    <div className="mt-3 pt-2.5 border-t border-emerald-800/40 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setStep(2)}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow"
-                      >
-                        <span>Continuar a Selección de Versión</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
+                    <div className="mt-3 pt-2.5 border-t border-emerald-800/40 flex flex-wrap items-center justify-end gap-2">
+                      {licenseResult.datosInscritos ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setStep(2)}
+                            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-lg transition-all cursor-pointer border border-slate-700"
+                          >
+                            Revisar Pasos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleFinishSetup()}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow"
+                          >
+                            <span>Cargar Datos Inscritos e Iniciar</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setStep(2)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow"
+                        >
+                          <span>Continuar a Selección de Versión</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -555,14 +689,14 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
                   <span>Paso 2: ¿Qué tipo de negocio tiene? Elija su versión:</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Ambas ediciones están habilitadas y puede alternar entre ellas en cualquier momento desde la barra superior.
+                  El sistema verifica la edición contratada en Firebase. Si posee ambas ediciones o activa la segunda con su código, podrá alternar libremente entre ellas.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                 {/* Opción A: Bodega & Abasto */}
                 <div
-                  onClick={() => setSelectedEdition("bodega")}
+                  onClick={handleSelectBodegaEdition}
                   className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative group ${
                     selectedEdition === "bodega"
                       ? "bg-gradient-to-b from-amber-950/40 via-[#181615] to-[#12141c] border-amber-500 shadow-xl shadow-amber-950/40 ring-2 ring-amber-500/20"
@@ -692,7 +826,9 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
                   </div>
 
                   <p className="text-xs text-slate-300">
-                    Ingrese el código de administración para desbloquear la Edición Fiscal SENIAT:
+                    {targetSetupEdition === "fiscal"
+                      ? "Introduzca el Código de activación para la Edición Fiscal"
+                      : "Introduzca el Código de activación para la Edición Bodega"}
                   </p>
 
                   <div className="flex items-center gap-2">
@@ -1187,12 +1323,21 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
                     // Sincronizar inmediatamente a Firebase al completar los datos del negocio
                     const licId = (getRemoteLicense()?.cliente_id || clienteId).trim();
                     if (licId) {
+                      const contractedEd = parseContractedEdition(
+                        licenseResult?.license?.edicion_contratada || getRemoteLicense().edicion_contratada
+                      );
+                      const edToSave =
+                        unlockedWithMasterCode || contractedEd === "ambas"
+                          ? "ambas"
+                          : selectedEdition;
                       autoRegisterBusinessInFirestore({
                         clienteId: licId,
                         nombreNegocio: config.nombreComercial,
                         rifCedula: config.rif,
                         telefonoContacto: config.telefono,
-                        edicionContratada: selectedEdition,
+                        edicionContratada: edToSave,
+                        cuotaMensualUsd: getCuotaMensualPorEdicion(edToSave),
+                        forceEditionUpgrade: unlockedWithMasterCode,
                       }).then((res) => {
                         if (res.success) {
                           showToast("☁️ Datos del negocio respaldados en la nube.");

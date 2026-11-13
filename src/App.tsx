@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { Header } from "./components/Header";
 import { InventoryView } from "./components/InventoryView";
 import { PosView } from "./components/PosView";
-import { MovementsView } from "./components/MovementsView";
-import { SalesBookView } from "./components/SalesBookView";
 import { BodegaEditionView } from "./components/BodegaEditionView";
-import { GeminiInvoiceView } from "./components/GeminiInvoiceView";
-import { DashboardView } from "./components/DashboardView";
+
+const MovementsView = React.lazy(() =>
+  import("./components/MovementsView").then((m) => ({ default: m.MovementsView }))
+);
+const SalesBookView = React.lazy(() =>
+  import("./components/SalesBookView").then((m) => ({ default: m.SalesBookView }))
+);
+const GeminiInvoiceView = React.lazy(() =>
+  import("./components/GeminiInvoiceView").then((m) => ({ default: m.GeminiInvoiceView }))
+);
+const DashboardView = React.lazy(() =>
+  import("./components/DashboardView").then((m) => ({ default: m.DashboardView }))
+);
 import {
   Producto,
   Categoria,
@@ -16,6 +25,7 @@ import {
   FacturaExtraida,
   MetodoPagoFiscal,
   PosOperationalMode,
+  PagoMixtoItem,
 } from "./types";
 import {
   getStoredProducts,
@@ -42,6 +52,9 @@ import {
   checkClientLicenseStatus,
   renewClientSubscription,
   unlockFiscalEdition,
+  revokeFiscalEdition,
+  parseContractedEdition,
+  isEditionAuthorizedByLicense,
   getStoredPosOperationalMode,
   savePosOperationalMode,
   getStoredUsers,
@@ -61,23 +74,48 @@ import {
   fetchRemoteLicenseFromFirestore,
   saveLicenseToFirestore,
 } from "./services/licenseService";
+import { APP_VERSION } from "./version";
+import { saveInvoiceLocally } from "./services/invoiceStorageService";
 import { EditionSelectorModal } from "./components/EditionSelectorModal";
 import { InitialPosModeModal } from "./components/InitialPosModeModal";
-import { UserManagementModal } from "./components/UserManagementModal";
-import { BackupRestoreModal } from "./components/BackupRestoreModal";
-import { TermsAndPrivacyModal } from "./components/TermsAndPrivacyModal";
-import { AppIconModal } from "./components/AppIconModal";
-import { ClientConfigModal } from "./components/ClientConfigModal";
-import { ClientUserManualModal } from "./components/ClientUserManualModal";
-import { NodeJsSetupModal } from "./components/NodeJsSetupModal";
 import { InitialSetupModal } from "./components/InitialSetupModal";
-import { SubscriptionInfoModal } from "./components/SubscriptionInfoModal";
 import { LicenseLockScreen } from "./components/LicenseLockScreen";
 import { ExpirationWarningBanner } from "./components/ExpirationWarningBanner";
 import { UserProfileLoginModal } from "./components/UserProfileLoginModal";
-import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
-import { SystemLogsModal } from "./components/SystemLogsModal";
-import { SystemUpdateModal } from "./components/SystemUpdateModal";
+
+const UserManagementModal = React.lazy(() =>
+  import("./components/UserManagementModal").then((m) => ({ default: m.UserManagementModal }))
+);
+const BackupRestoreModal = React.lazy(() =>
+  import("./components/BackupRestoreModal").then((m) => ({ default: m.BackupRestoreModal }))
+);
+const TermsAndPrivacyModal = React.lazy(() =>
+  import("./components/TermsAndPrivacyModal").then((m) => ({ default: m.TermsAndPrivacyModal }))
+);
+const AppIconModal = React.lazy(() =>
+  import("./components/AppIconModal").then((m) => ({ default: m.AppIconModal }))
+);
+const ClientConfigModal = React.lazy(() =>
+  import("./components/ClientConfigModal").then((m) => ({ default: m.ClientConfigModal }))
+);
+const ClientUserManualModal = React.lazy(() =>
+  import("./components/ClientUserManualModal").then((m) => ({ default: m.ClientUserManualModal }))
+);
+const NodeJsSetupModal = React.lazy(() =>
+  import("./components/NodeJsSetupModal").then((m) => ({ default: m.NodeJsSetupModal }))
+);
+const SubscriptionInfoModal = React.lazy(() =>
+  import("./components/SubscriptionInfoModal").then((m) => ({ default: m.SubscriptionInfoModal }))
+);
+const KeyboardShortcutsModal = React.lazy(() =>
+  import("./components/KeyboardShortcutsModal").then((m) => ({ default: m.KeyboardShortcutsModal }))
+);
+const SystemLogsModal = React.lazy(() =>
+  import("./components/SystemLogsModal").then((m) => ({ default: m.SystemLogsModal }))
+);
+const SystemUpdateModal = React.lazy(() =>
+  import("./components/SystemUpdateModal").then((m) => ({ default: m.SystemUpdateModal }))
+);
 import { logger } from "./services/logger";
 import { getBcvRates } from "./services/bcvService";
 import {
@@ -223,9 +261,16 @@ export function App() {
   // System GitHub Updates Modal State
   const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
 
-  // Initialize Logger Global Handlers
+  // Startup 3-second smooth icon animation state
+  const [showStartupSplash, setShowStartupSplash] = useState<boolean>(true);
+
+  // Initialize Logger Global Handlers & Safety fallback timer for 3s splash
   useEffect(() => {
     logger.initGlobalHandlers();
+    const splashTimer = setTimeout(() => {
+      setShowStartupSplash(false);
+    }, 3300);
+    return () => clearTimeout(splashTimer);
   }, []);
 
   // Sync Logger Context with Current User and Active Tab
@@ -373,7 +418,7 @@ export function App() {
       accepted: true,
       acceptedAt: new Date().toISOString(),
       acceptedBy,
-      version: "v2.4",
+      version: `v${APP_VERSION}`,
     };
     setTermsAcceptance(updated);
     saveStoredTermsAcceptance(updated);
@@ -401,8 +446,26 @@ export function App() {
   };
 
   const handleUpdateLicenseState = (updated: RemoteClientLicense) => {
-    setClientLicense(updated);
-    saveRemoteLicense(updated);
+    const contracted = parseContractedEdition(updated.edicion_contratada);
+    const normalized: RemoteClientLicense = {
+      ...updated,
+      edicion_contratada: contracted,
+    };
+    setClientLicense(normalized);
+    saveRemoteLicense(normalized);
+    if (contracted === "bodega") {
+      revokeFiscalEdition();
+      setAppEdition("bodega");
+      saveAppEdition("bodega");
+      setActiveCtkTab((prev) =>
+        prev === "pos" || prev === "sales_book" || prev === "movements" ? "bodega" : prev
+      );
+    } else if (contracted === "fiscal") {
+      // Si el cliente tiene SOLO la Edición Fiscal, no tiene Edición Bodega
+      setAppEdition("fiscal");
+      saveAppEdition("fiscal");
+      setActiveCtkTab((prev) => (prev === "bodega" ? "pos" : prev));
+    }
   };
 
   const handleEmergencyUnlockLicense = (code: string): boolean => {
@@ -440,8 +503,7 @@ export function App() {
           ultimo_contacto_servidor: new Date().toISOString(),
         };
 
-        setClientLicense(updated);
-        saveRemoteLicense(updated);
+        handleUpdateLicenseState(updated);
 
         if (isActivo && !isExpired) {
           showToast(`¡Licencia verificada en Firebase Firestore! Sistema activo para ${updated.nombre_negocio}.`);
@@ -575,29 +637,70 @@ export function App() {
     // Obtener cotización oficial en vivo de inmediato
     fetchLiveBcvRate(false);
 
-    // Sincronización automática de licencia con Google Sheets al iniciar
+    // Sincronización automática de licencia con Firebase Firestore (y respaldo Google Sheets) al iniciar
     const silentSyncLicense = async () => {
       try {
         const storedLic = getRemoteLicense();
+
+        // 1. Prioridad absoluta: Consultar Firebase Firestore en tiempo real
+        if (storedLic.cliente_id) {
+          const fsRes = await fetchRemoteLicenseFromFirestore(storedLic.cliente_id);
+          if (fsRes.success && fsRes.found && fsRes.license) {
+            const fsLic = fsRes.license;
+            const contracted = parseContractedEdition(fsLic.edicion_contratada);
+            const updated: RemoteClientLicense = {
+              ...storedLic,
+              ...fsLic,
+              edicion_contratada: contracted,
+              ultimo_contacto_servidor: new Date().toISOString(),
+            };
+            setClientLicense(updated);
+            saveRemoteLicense(updated);
+            if (contracted === "bodega") {
+              revokeFiscalEdition();
+              setAppEdition("bodega");
+              saveAppEdition("bodega");
+              setActiveCtkTab((prev) =>
+                prev === "pos" || prev === "sales_book" || prev === "movements" ? "bodega" : prev
+              );
+            } else if (contracted === "fiscal") {
+              setAppEdition("fiscal");
+              saveAppEdition("fiscal");
+              setActiveCtkTab((prev) => (prev === "bodega" ? "pos" : prev));
+            }
+            return;
+          }
+        }
+
+        // 2. Respaldo: Google Sheets API
         const res = await fetch(`/api/license/sync?clienteId=${encodeURIComponent(storedLic.cliente_id)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.found) {
+            const contracted = parseContractedEdition(data.edicion || storedLic.edicion_contratada);
             const updated: RemoteClientLicense = {
               ...storedLic,
               estado_remoto: data.estado || storedLic.estado_remoto,
               fecha_vencimiento_actual: data.fechaVencimiento || storedLic.fecha_vencimiento_actual,
               nombre_negocio: data.nombreNegocio || storedLic.nombre_negocio,
               cuota_mensual_usd: data.cuotaUsd || storedLic.cuota_mensual_usd,
-              edicion_contratada: data.edicion || storedLic.edicion_contratada,
+              edicion_contratada: contracted,
               motivo_bloqueo: data.motivo || "",
               ultimo_contacto_servidor: new Date().toISOString(),
             };
             setClientLicense(updated);
             saveRemoteLicense(updated);
-            if (data.edicion && (data.edicion === "bodega" || data.edicion === "fiscal")) {
-              setAppEdition(data.edicion);
-              saveAppEdition(data.edicion);
+            if (contracted === "bodega") {
+              revokeFiscalEdition();
+              setAppEdition("bodega");
+              saveAppEdition("bodega");
+              setActiveCtkTab((prev) =>
+                prev === "pos" || prev === "sales_book" || prev === "movements" ? "bodega" : prev
+              );
+            } else if (contracted === "fiscal") {
+              setAppEdition("fiscal");
+              saveAppEdition("fiscal");
+              setActiveCtkTab((prev) => (prev === "bodega" ? "pos" : prev));
             }
           }
         }
@@ -606,6 +709,14 @@ export function App() {
       }
     };
     silentSyncLicense();
+
+    const handleOnlineReconnect = () => {
+      silentSyncLicense();
+    };
+    window.addEventListener("online", handleOnlineReconnect);
+    return () => {
+      window.removeEventListener("online", handleOnlineReconnect);
+    };
   }, []);
 
   // Sync back to LocalStorage
@@ -620,6 +731,17 @@ export function App() {
   };
 
   const updateSalesState = (newSales: Venta[]) => {
+    // Si se registró una venta nueva y estamos en modo Sin Datáfono ('inventory_only'):
+    if (newSales.length > sales.length && newSales[0] && posMode === "inventory_only") {
+      const addedSale = newSales[0];
+      saveInvoiceLocally(addedSale, posMode).then((res) => {
+        if (res.success && res.folder) {
+          showToast(`📁 Factura guardada en carpeta: facturas_emitidas/${res.folder}`);
+        } else if (res.success && res.filename) {
+          showToast(`📁 Factura guardada en disco: ${res.filename}`);
+        }
+      });
+    }
     setSales(newSales);
     saveSales(newSales);
   };
@@ -884,7 +1006,20 @@ export function App() {
     numeroFactura: string,
     numeroControl: string,
     aplicaIgtfCustom?: boolean,
-    posMetadata?: { referencia?: string; lote?: string; aprobacion?: string; terminal?: string }
+    posMetadata?: {
+      referencia?: string;
+      lote?: string;
+      aprobacion?: string;
+      terminal?: string;
+      pagos_mixtos?: PagoMixtoItem[];
+      monto_base_igtf_usd?: number;
+      imprenta_digital_proveedor?: string;
+      imprenta_digital_rif?: string;
+      imprenta_digital_autorizacion?: string;
+      imprenta_digital_hash?: string;
+      imprenta_digital_url?: string;
+      imprenta_digital_fecha_asignacion?: string;
+    }
   ): Venta => {
     // 1. Verificación obligatoria contra saldos negativos (LISLR Art. 177)
     for (const it of items) {
@@ -912,12 +1047,19 @@ export function App() {
     const ivaUsd = Math.round(baseImponibleUsd * 0.16 * 100) / 100;
     const subtotalConIvaUsd = baseExentaUsd + baseImponibleUsd + ivaUsd;
 
-    // IGTF 3% si el usuario seleccionó aplicarlo (o por defecto si el pago es en divisas o criptoactivos)
+    // IGTF 3% si el usuario seleccionó aplicarlo (o sobre la porción en divisas en caso de Pago Mixto)
     const aplicaIgtf =
       aplicaIgtfCustom !== undefined
         ? aplicaIgtfCustom
         : metodo === "Divisas en Efectivo" || metodo === "Criptoactivos";
-    const igtfUsd = aplicaIgtf ? Math.round(subtotalConIvaUsd * 0.03 * 100) / 100 : 0;
+
+    const baseIgtfUsd =
+      posMetadata?.monto_base_igtf_usd !== undefined
+        ? Math.min(subtotalConIvaUsd, Math.max(0, posMetadata.monto_base_igtf_usd))
+        : subtotalConIvaUsd;
+
+    const igtfUsd =
+      aplicaIgtf && baseIgtfUsd > 0 ? Math.round(baseIgtfUsd * 0.03 * 100) / 100 : 0;
     const totalUsd = Math.round((subtotalConIvaUsd + igtfUsd) * 100) / 100;
 
     // Conversión a Bolívares (VES) a Tasa Oficial BCV
@@ -943,6 +1085,7 @@ export function App() {
       base_exenta_usd: baseExentaUsd,
       base_imponible_usd: baseImponibleUsd,
       iva_usd: ivaUsd,
+      monto_base_igtf_usd: aplicaIgtf ? baseIgtfUsd : 0,
       igtf_usd: igtfUsd,
       total_usd: totalUsd,
       total: totalUsd,
@@ -957,11 +1100,19 @@ export function App() {
       moneda_pago: metodo === "Divisas en Efectivo" || metodo === "Criptoactivos" ? "USD" : "VES",
       monto_pagado,
       cambio,
-      usuario: "Caja 1 Fiscal",
+      usuario: currentUser ? `${currentUser.nombre_completo} (${currentUser.rol === "ADMIN" ? "Administrador" : "Cajero"})` : "Caja 1 Fiscal",
       pos_referencia: posMetadata?.referencia,
       pos_lote: posMetadata?.lote,
       pos_aprobacion: posMetadata?.aprobacion,
       pos_terminal: posMetadata?.terminal,
+      pagos_mixtos: posMetadata?.pagos_mixtos,
+      imprenta_digital_proveedor: posMetadata?.imprenta_digital_proveedor,
+      imprenta_digital_rif: posMetadata?.imprenta_digital_rif,
+      imprenta_digital_autorizacion: posMetadata?.imprenta_digital_autorizacion,
+      imprenta_digital_hash: posMetadata?.imprenta_digital_hash,
+      imprenta_digital_url: posMetadata?.imprenta_digital_url,
+      imprenta_digital_fecha_asignacion: posMetadata?.imprenta_digital_fecha_asignacion,
+      estado: "ACTIVA",
       items: items.map((it) => ({
         producto_id: it.producto.id,
         nombre: it.producto.nombre,
@@ -1005,7 +1156,7 @@ export function App() {
         stock_resultante: resultingStock,
         motivo: `Factura Fiscal N° ${numeroFactura} (${clienteNombre})`,
         fecha: dateStr,
-        usuario: "Caja 1",
+        usuario: currentUser?.username || "Caja 1",
         referencia_factura: numeroFactura,
       };
     });
@@ -1034,6 +1185,92 @@ export function App() {
       `Factura Fiscal N° ${numeroFactura} procesada exitosamente (Total: Bs. ${totalVes.toFixed(2)} / $${totalUsd.toFixed(2)}).`
     );
     return newSale;
+  };
+
+  // Emitir Nota de Crédito / Anulación de Factura con reintegro de Stock y Kardex (Punto 4)
+  const handleVoidSale = (saleId: number, motivo: string, autorizador?: string) => {
+    const targetSale = sales.find((s) => s.id === saleId);
+    if (!targetSale || targetSale.estado === "ANULADA") return;
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 19).replace("T", " ");
+    const voidedCount = sales.filter((s) => s.estado === "ANULADA").length + 1;
+    const ncNumber = `NC-00-${String(voidedCount).padStart(6, "0")}`;
+    const authUser =
+      autorizador ||
+      (currentUser
+        ? `${currentUser.nombre_completo} (${currentUser.rol === "ADMIN" ? "Administrador" : "Supervisor"})`
+        : "Administrador");
+
+    // 1. Reintegrar existencias al inventario de todos los productos de la factura
+    const returnMap = new Map<number, number>();
+    (targetSale.items || []).forEach((it) => {
+      returnMap.set(it.producto_id, (returnMap.get(it.producto_id) || 0) + it.cantidad);
+    });
+
+    const updatedProducts = products.map((p) => {
+      const qtyToReturn = returnMap.get(p.id);
+      if (qtyToReturn) {
+        return { ...p, stock_actual: p.stock_actual + qtyToReturn };
+      }
+      return p;
+    });
+
+    // 2. Registrar entradas por DEVOLUCION en el Kardex Valorado (Art. 177 LISLR)
+    const newKardexEntries: Movimiento[] = (targetSale.items || []).map((it, idx) => {
+      const p = products.find((prod) => prod.id === it.producto_id);
+      const currentPmp = p?.costo_promedio_ponderado || p?.precio_costo || 0;
+      const resultingStock = (p?.stock_actual || 0) + it.cantidad;
+
+      return {
+        id: movements.length + idx + 1,
+        producto_id: it.producto_id,
+        producto_nombre: it.nombre,
+        tipo: "DEVOLUCION",
+        cantidad: it.cantidad,
+        costo_unitario: currentPmp,
+        costo_promedio_ponderado: currentPmp,
+        stock_resultante: resultingStock,
+        motivo: `Nota de Crédito ${ncNumber} (Anula Factura ${targetSale.numero_factura}) - ${motivo}`,
+        fecha: dateStr,
+        usuario: authUser,
+        referencia_factura: ncNumber,
+      };
+    });
+
+    // 3. Actualizar la factura a estado ANULADA conservando trazabilidad SENIAT
+    const updatedSales = sales.map((s) =>
+      s.id === saleId
+        ? {
+            ...s,
+            estado: "ANULADA" as const,
+            nota_credito: ncNumber,
+            fecha_anulacion: dateStr,
+            motivo_anulacion: motivo,
+            usuario_anulacion: authUser,
+          }
+        : s
+    );
+
+    updateProductsState(updatedProducts);
+    updateMovementsState([...newKardexEntries, ...movements]);
+    setSales(updatedSales);
+    saveSales(updatedSales);
+
+    logger.warn(
+      "Nota de Crédito / Anulación",
+      `Emitida ${ncNumber} anulando Factura N° ${targetSale.numero_factura}. Stock reintegrado al almacén. Motivo: ${motivo}`,
+      {
+        notaCredito: ncNumber,
+        facturaOriginal: targetSale.numero_factura,
+        motivo,
+        autorizadoPor: authUser,
+      }
+    );
+
+    showToast(
+      `✅ Nota de Crédito ${ncNumber} emitida. Factura ${targetSale.numero_factura} anulada y stock reintegrado al inventario.`
+    );
   };
 
   // Import items extracted by Gemini AI from invoice (Purchase entry recalculating PMP)
@@ -1146,9 +1383,23 @@ export function App() {
   };
 
   // Handle switching edition from modal
-  const handleSelectEdition = (edition: "bodega" | "fiscal") => {
-    if (edition === "fiscal" && !isFiscalEditionUnlocked()) {
-      showToast("🔒 Se requiere ingresar el código 'FISCAL-ADMIN-2552' para habilitar la Edición Fiscal SENIAT.");
+  const handleSelectEdition = (
+    edition: "bodega" | "fiscal",
+    unlockedWithMasterCode = false
+  ) => {
+    const currentLic = getRemoteLicense();
+    const isAuthorizedInFirebase = isEditionAuthorizedByLicense(edition, currentLic);
+
+    // Si intenta activar una edición no autorizada en su licencia de Firebase y no ingresó el código maestro, bloquear
+    if (!isAuthorizedInFirebase && !unlockedWithMasterCode) {
+      if (parseContractedEdition(currentLic.edicion_contratada) === "bodega") {
+        revokeFiscalEdition();
+      }
+      showToast(
+        edition === "fiscal"
+          ? "🔒 Introduzca el Código de activación para la Edición Fiscal"
+          : "🔒 Introduzca el Código de activación para la Edición Bodega"
+      );
       setShowEditionModal(true);
       return;
     }
@@ -1158,12 +1409,47 @@ export function App() {
     setShowEditionModal(false);
     setIsFirstRunModal(false);
 
+    // Si se desbloqueó la otra edición con código de activación, habilitar 'ambas' ($35/mes) en Firebase
+    if (unlockedWithMasterCode) {
+      const updatedLic: RemoteClientLicense = {
+        ...currentLic,
+        edicion_contratada: "ambas",
+        cuota_mensual_usd: 35,
+        ultimo_contacto_servidor: new Date().toISOString(),
+      };
+      setClientLicense(updatedLic);
+      saveRemoteLicense(updatedLic);
+
+      if (updatedLic.cliente_id) {
+        saveLicenseToFirestore(updatedLic)
+          .then((ok) => {
+            if (ok) {
+              logger.info(
+                "Firebase Firestore",
+                `Estatus de edición actualizado a 'ambas' ($35/mes) en Firebase mediante Código de Activación para ${updatedLic.cliente_id}`
+              );
+            }
+          })
+          .catch((err) => {
+            console.warn("[Firebase] No se pudo sincronizar el cambio de edición:", err);
+          });
+      }
+    }
+
     if (edition === "bodega") {
       setActiveCtkTab("bodega");
-      showToast("🏪 Edición Bodega y Mostrador activada.");
+      showToast(
+        unlockedWithMasterCode
+          ? "🏪 Edición Bodega desbloqueada y habilitada en Firebase ($35/mes Ambas)."
+          : "🏪 Edición Bodega y Mostrador activada."
+      );
     } else {
       setActiveCtkTab("pos");
-      showToast("🏢 Edición Fiscal SENIAT activada.");
+      showToast(
+        unlockedWithMasterCode
+          ? "🏢 Edición Fiscal SENIAT desbloqueada y habilitada en Firebase ($35/mes Ambas)."
+          : "🏢 Edición Fiscal SENIAT activada."
+      );
     }
 
     // Si es primera vez o aún no se ha configurado el modo de datáfono vs solo inventario, mostrar el modal de modo operativo
@@ -1189,6 +1475,33 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#0c0e12] text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+      {/* Animación de Inicio de 3 Segundos (FaradayPOS) */}
+      {showStartupSplash && (
+        <div
+          className="fixed inset-0 z-[100] bg-[#121723] flex flex-col items-center justify-center select-none pointer-events-none animate-faraday-splash-2s"
+          onAnimationEnd={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowStartupSplash(false);
+            }
+          }}
+          aria-hidden="true"
+        >
+          <div className="relative flex flex-col items-center gap-3 animate-faraday-icon-2s">
+            <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-3xl overflow-hidden">
+              <img
+                src="/src/assets/images/faraday_pos_dark_icon_1794172646016.jpg"
+                alt="FaradayPOS"
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+              Faraday<span className="text-emerald-300">POS</span>
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Top Header with BCV Rate Editor & Fiscal Badges */}
       <Header
         isOfflineMode={isOfflineMode}
@@ -1398,81 +1711,91 @@ export function App() {
 
             {/* Inner Body */}
               <div className="p-4 lg:p-6 bg-[#16181f]">
-                {activeCtkTab === "dashboard" && (
-                  <DashboardView
-                    sales={sales}
-                    products={products}
-                    bcvRate={bcvRate}
-                    currentUser={currentUser}
-                  />
-                )}
+                <Suspense
+                  fallback={
+                    <div className="py-16 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs font-mono">
+                      <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      <span>Cargando módulo...</span>
+                    </div>
+                  }
+                >
+                  {activeCtkTab === "dashboard" && (
+                    <DashboardView
+                      sales={sales}
+                      products={products}
+                      bcvRate={bcvRate}
+                      currentUser={currentUser}
+                    />
+                  )}
 
-                {activeCtkTab === "bodega" && (
-                  <BodegaEditionView
-                    products={products}
-                    bcvRate={bcvRate}
-                    onUpdateProductStock={handleBodegaStockUpdate}
-                    onRecordSale={(sale) => updateSalesState([sale, ...sales])}
-                    showToast={showToast}
-                    posMode={posMode}
-                    onTogglePosMode={handleSelectPosMode}
-                    currentUser={currentUser}
-                    onUserChange={(newUser) => setCurrentUser(newUser)}
-                  />
-                )}
+                  {activeCtkTab === "bodega" && (
+                    <BodegaEditionView
+                      products={products}
+                      bcvRate={bcvRate}
+                      onUpdateProductStock={handleBodegaStockUpdate}
+                      onRecordSale={(sale) => updateSalesState([sale, ...sales])}
+                      showToast={showToast}
+                      posMode={posMode}
+                      onTogglePosMode={handleSelectPosMode}
+                      currentUser={currentUser}
+                      onUserChange={(newUser) => setCurrentUser(newUser)}
+                    />
+                  )}
 
-                {activeCtkTab === "inventory" && (
-                  <InventoryView
-                    products={products}
-                    categories={categories}
-                    bcvRate={bcvRate}
-                    onAddProduct={handleAddProduct}
-                    onUpdateProduct={handleUpdateProduct}
-                    onDeleteProduct={handleDeleteProduct}
-                    onQuickStockAdjustment={handleQuickStockAdjustment}
-                    currentUser={currentUser}
-                    onBatchImportProducts={handleBatchImportProducts}
-                    showToast={showToast}
-                  />
-                )}
+                  {activeCtkTab === "inventory" && (
+                    <InventoryView
+                      products={products}
+                      categories={categories}
+                      bcvRate={bcvRate}
+                      onAddProduct={handleAddProduct}
+                      onUpdateProduct={handleUpdateProduct}
+                      onDeleteProduct={handleDeleteProduct}
+                      onQuickStockAdjustment={handleQuickStockAdjustment}
+                      currentUser={currentUser}
+                      onBatchImportProducts={handleBatchImportProducts}
+                      showToast={showToast}
+                    />
+                  )}
 
-                {activeCtkTab === "pos" && (
-                  <PosView
-                    products={products}
-                    bcvRate={bcvRate}
-                    correlativos={correlativos}
-                    onCompleteSale={handleCompleteSale}
-                    posMode={posMode}
-                    onTogglePosMode={handleSelectPosMode}
-                  />
-                )}
+                  {activeCtkTab === "pos" && (
+                    <PosView
+                      products={products}
+                      bcvRate={bcvRate}
+                      correlativos={correlativos}
+                      onCompleteSale={handleCompleteSale}
+                      posMode={posMode}
+                      onTogglePosMode={handleSelectPosMode}
+                    />
+                  )}
 
-                {activeCtkTab === "sales_book" && (
-                  <SalesBookView
-                    sales={sales}
-                    bcvRate={bcvRate}
-                    onClearSales={() => updateSalesState([])}
-                    showToast={showToast}
-                    currentUser={currentUser}
-                  />
-                )}
+                  {activeCtkTab === "sales_book" && (
+                    <SalesBookView
+                      sales={sales}
+                      bcvRate={bcvRate}
+                      onClearSales={() => updateSalesState([])}
+                      onVoidSale={handleVoidSale}
+                      showToast={showToast}
+                      currentUser={currentUser}
+                    />
+                  )}
 
-                {activeCtkTab === "movements" && (
-                  <MovementsView
-                    movements={movements}
-                    products={products}
-                    bcvRate={bcvRate}
-                    onAddManualMovement={handleQuickStockAdjustment}
-                  />
-                )}
+                  {activeCtkTab === "movements" && (
+                    <MovementsView
+                      movements={movements}
+                      products={products}
+                      bcvRate={bcvRate}
+                      onAddManualMovement={handleQuickStockAdjustment}
+                    />
+                  )}
 
-                {activeCtkTab === "invoice_ai" && (
-                  <GeminiInvoiceView
-                    isOfflineMode={isOfflineMode}
-                    onImportInvoiceItems={handleImportInvoiceItems}
-                    showToast={showToast}
-                  />
-                )}
+                  {activeCtkTab === "invoice_ai" && (
+                    <GeminiInvoiceView
+                      isOfflineMode={isOfflineMode}
+                      onImportInvoiceItems={handleImportInvoiceItems}
+                      showToast={showToast}
+                    />
+                  )}
+                </Suspense>
               </div>
 
               {/* Status Bar (Windows Bottom Bar) */}
@@ -1515,7 +1838,7 @@ export function App() {
       <footer className="border-t border-slate-800/80 bg-[#12141a] py-3.5 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-3">
           <p className="text-center md:text-left">
-            Sistema POS y Facturación para Comercios en Venezuela (SENIAT / Providencia SNAT/00071 / LISLR Art. 177) • Node.js + Express & React
+            <strong className="text-slate-300">FaradayPOS</strong> — Sistema de Inventario y Facturación para Comercios en Venezuela (SENIAT / Providencia SNAT/00071 / LISLR Art. 177) • Node.js + Express & React
           </p>
 
           <div className="flex items-center gap-3 text-slate-400 font-medium shrink-0 flex-wrap justify-center text-[11px]">
@@ -1561,6 +1884,8 @@ export function App() {
         currentEdition={appEdition}
         onSelectEdition={handleSelectEdition}
         isFirstRun={isFirstRunModal}
+        clientLicense={clientLicense}
+        onUpdateLicense={handleUpdateLicenseState}
       />
 
       {/* Asistente de Selección de Modo Operativo (SmartPOS vs Solo Inventario & Total) */}
@@ -1572,66 +1897,111 @@ export function App() {
         isFirstRun={isFirstRunPosMode}
       />
 
-      {/* Modal de Instalación, Servidor y Ejecución con Node.js */}
-      <NodeJsSetupModal
-        isOpen={showNodeJsModal}
-        onClose={() => setShowNodeJsModal(false)}
-        showToast={showToast}
-      />
+      {/* Modales diferidos (Code Splitting bajo demanda) */}
+      <Suspense fallback={null}>
+        {showNodeJsModal && (
+          <NodeJsSetupModal
+            isOpen={showNodeJsModal}
+            onClose={() => setShowNodeJsModal(false)}
+            showToast={showToast}
+          />
+        )}
 
-      {/* Modal de Control de Usuarios, Seguridad & RBAC */}
-      <UserManagementModal
-        isOpen={showUserModal}
-        onClose={() => setShowUserModal(false)}
-        currentUser={currentUser}
-        onSelectUser={handleSelectUser}
-        showToast={showToast}
-      />
+        {showUserModal && (
+          <UserManagementModal
+            isOpen={showUserModal}
+            onClose={() => setShowUserModal(false)}
+            currentUser={currentUser}
+            onSelectUser={handleSelectUser}
+            showToast={showToast}
+          />
+        )}
 
-      {/* Modal de Exportación & Importación de Base de Datos para Respaldo */}
-      <BackupRestoreModal
-        isOpen={showBackupModal}
-        onClose={() => setShowBackupModal(false)}
-        onRestoreComplete={handleRestoreComplete}
-        showToast={showToast}
-        onOpenPrivacyPolicy={() => handleOpenTermsModal("privacy")}
-        currentUser={currentUser}
-      />
+        {showBackupModal && (
+          <BackupRestoreModal
+            isOpen={showBackupModal}
+            onClose={() => setShowBackupModal(false)}
+            onRestoreComplete={handleRestoreComplete}
+            showToast={showToast}
+            onOpenPrivacyPolicy={() => handleOpenTermsModal("privacy")}
+            currentUser={currentUser}
+          />
+        )}
 
-      {/* Modal de Términos y Condiciones, Privacidad & Cumplimiento Legal SENIAT */}
-      <TermsAndPrivacyModal
-        isOpen={showTermsModal}
-        onClose={() => setShowTermsModal(false)}
-        initialTab={termsInitialTab}
-        termsAcceptance={termsAcceptance}
-        onAcceptTerms={handleAcceptTerms}
-        license={clientLicense}
-        currentUser={currentUser}
-        showToast={showToast}
-      />
+        {showTermsModal && (
+          <TermsAndPrivacyModal
+            isOpen={showTermsModal}
+            onClose={() => setShowTermsModal(false)}
+            initialTab={termsInitialTab}
+            termsAcceptance={termsAcceptance}
+            onAcceptTerms={handleAcceptTerms}
+            license={clientLicense}
+            currentUser={currentUser}
+            showToast={showToast}
+          />
+        )}
 
-      {/* Modal de Visualización & Descarga del Ícono Oficial del Programa */}
-      <AppIconModal
-        isOpen={showIconModal}
-        onClose={() => setShowIconModal(false)}
-        showToast={showToast}
-      />
+        {showIconModal && (
+          <AppIconModal
+            isOpen={showIconModal}
+            onClose={() => setShowIconModal(false)}
+            showToast={showToast}
+          />
+        )}
 
-      {/* Modal de Datos del Negocio del Cliente (Para Tickets y Facturas) */}
-      <ClientConfigModal
-        isOpen={showClientConfigModal}
-        onClose={() => setShowClientConfigModal(false)}
-        onSaved={(cfg) => setNegocioConfig(cfg)}
-        showToast={showToast}
-        bcvRate={bcvRate}
-      />
+        {showClientConfigModal && (
+          <ClientConfigModal
+            isOpen={showClientConfigModal}
+            onClose={() => setShowClientConfigModal(false)}
+            onSaved={(cfg) => setNegocioConfig(cfg)}
+            showToast={showToast}
+            bcvRate={bcvRate}
+          />
+        )}
 
-      {/* Manual de Operaciones y Guía del Cajero para el Cliente */}
-      <ClientUserManualModal
-        isOpen={showClientManualModal}
-        onClose={() => setShowClientManualModal(false)}
-        bcvRate={bcvRate}
-      />
+        {showClientManualModal && (
+          <ClientUserManualModal
+            isOpen={showClientManualModal}
+            onClose={() => setShowClientManualModal(false)}
+            bcvRate={bcvRate}
+          />
+        )}
+
+        {showSubscriptionModal && (
+          <SubscriptionInfoModal
+            isOpen={showSubscriptionModal}
+            onClose={() => setShowSubscriptionModal(false)}
+            clientLicense={clientLicense}
+            onUpdateLicense={handleUpdateLicenseState}
+            showToast={showToast}
+            currentEdition={appEdition}
+            bcvRate={bcvRate}
+          />
+        )}
+
+        {showKeyboardShortcutsModal && (
+          <KeyboardShortcutsModal
+            isOpen={showKeyboardShortcutsModal}
+            onClose={() => setShowKeyboardShortcutsModal(false)}
+          />
+        )}
+
+        {showLogsModal && (
+          <SystemLogsModal
+            isOpen={showLogsModal}
+            onClose={() => setShowLogsModal(false)}
+            showToast={showToast}
+          />
+        )}
+
+        {showUpdateModal && (
+          <SystemUpdateModal
+            isOpen={showUpdateModal}
+            onClose={() => setShowUpdateModal(false)}
+            showToast={showToast}
+          />
+        )}
+      </Suspense>
 
       {/* Modal de Configuración Inicial (Datos del Negocio + Selección de Versión en Primer Inicio) */}
       <InitialSetupModal
@@ -1643,17 +2013,6 @@ export function App() {
         bcvRate={bcvRate}
         onComplete={handleInitialSetupComplete}
         showToast={showToast}
-      />
-
-      {/* Modal de Información de Suscripción & Días Restantes */}
-      <SubscriptionInfoModal
-        isOpen={showSubscriptionModal}
-        onClose={() => setShowSubscriptionModal(false)}
-        clientLicense={clientLicense}
-        onUpdateLicense={handleUpdateLicenseState}
-        showToast={showToast}
-        currentEdition={appEdition}
-        bcvRate={bcvRate}
       />
 
       {/* Pantalla de Inicio de Sesión y Selección de Perfil con PIN */}
@@ -1677,26 +2036,6 @@ export function App() {
           onRetryVerification={handleRetryVerification}
         />
       )}
-
-      {/* Modal de Guía de Atajos de Teclado */}
-      <KeyboardShortcutsModal
-        isOpen={showKeyboardShortcutsModal}
-        onClose={() => setShowKeyboardShortcutsModal(false)}
-      />
-
-      {/* Modal de Registro de Eventos, Logs & Diagnóstico de Bugs */}
-      <SystemLogsModal
-        isOpen={showLogsModal}
-        onClose={() => setShowLogsModal(false)}
-        showToast={showToast}
-      />
-
-      {/* Modal de Actualizaciones del Sistema vía GitHub (Node.js Local) */}
-      <SystemUpdateModal
-        isOpen={showUpdateModal}
-        onClose={() => setShowUpdateModal(false)}
-        showToast={showToast}
-      />
     </div>
   );
 }

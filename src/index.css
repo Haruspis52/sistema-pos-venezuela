@@ -32,10 +32,55 @@
   scrollbar-color: #475569 rgba(15, 23, 42, 0.6);
 }
 
-/* Habilitar scroll suave en móviles y contenedores scrollables */
+/* Habilitar scroll fluido y permitir que el scroll con la rueda del ratón fluya a la página */
 .overflow-y-auto, .overflow-y-scroll, .overflow-x-auto {
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: auto;
+}
+
+/* Solo las ventanas modales emergentes fijas deben contener el scroll de fondo */
+.fixed.overflow-y-auto {
   overscroll-behavior: contain;
 }
 
+/* Animación de inicio (Splash) de 3 segundos para FaradayPOS con desvanecimiento suave en el último segundo */
+@keyframes faradayIconGrow {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+    filter: drop-shadow(0 0 0px rgba(147, 197, 253, 0));
+  }
+  18% {
+    opacity: 1;
+  }
+  66.67% {
+    opacity: 1;
+    transform: scale(1.12);
+    filter: drop-shadow(0 18px 38px rgba(110, 231, 183, 0.25));
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.22);
+    filter: drop-shadow(0 24px 48px rgba(147, 197, 253, 0));
+  }
+}
 
+@keyframes faradaySplashOverlay {
+  0%, 66.67% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-faraday-icon-2s {
+  animation: faradayIconGrow 3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+.animate-faraday-splash-2s {
+  animation: faradaySplashOverlay 3s ease-in-out forwards;
+}

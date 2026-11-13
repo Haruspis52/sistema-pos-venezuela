@@ -22,6 +22,8 @@ export interface Producto {
   alicuota_iva: TipoAlicuotaIva; // 16% o 0% (Exento)
   unidad_medida: string;
   fecha_registro?: string;
+  fecha_vencimiento?: string; // Fecha de vencimiento YYYY-MM-DD opcional
+  lote?: string; // Número de lote opcional
 }
 
 export type TipoMovimientoKardex =
@@ -66,7 +68,17 @@ export type MetodoPagoFiscal =
   | 'Pago Móvil'
   | 'Transferencia Bs'
   | 'Divisas en Efectivo'
-  | 'Criptoactivos';
+  | 'Criptoactivos'
+  | 'Pago Mixto ($ + Bs)';
+
+export interface PagoMixtoItem {
+  metodo: MetodoPagoFiscal | 'Efectivo Bs' | 'Zelle' | string;
+  moneda: 'USD' | 'VES';
+  monto_usd: number;
+  monto_ves: number;
+  referencia?: string;
+  aplica_igtf: boolean;
+}
 
 export interface Venta {
   id: number;
@@ -91,6 +103,7 @@ export interface Venta {
   iva_usd: number;
   iva_ves: number; // IVA 16%
   aplica_igtf: boolean; // Si es pago en divisas en efectivo o cripto
+  monto_base_igtf_usd?: number; // Base en USD sobre la que se calculó el 3% IGTF (útil en pagos mixtos)
   igtf_usd: number; // 3% IGTF
   igtf_ves: number; // 3% IGTF en Bs.
   total_usd: number;
@@ -104,6 +117,23 @@ export interface Venta {
   pos_lote?: string;
   pos_aprobacion?: string;
   pos_terminal?: string;
+  pagos_mixtos?: PagoMixtoItem[]; // Desglose de multipago ($ + Bs)
+  
+  // Campos para Devoluciones / Notas de Crédito / Anulación Fiscal (Punto 4)
+  estado?: 'ACTIVA' | 'ANULADA';
+  nota_credito?: string;
+  fecha_anulacion?: string;
+  motivo_anulacion?: string;
+  usuario_anulacion?: string;
+
+  // Campos para Facturación Digital (Providencia SNAT/2024/000102 - Imprenta Digital Autorizada)
+  imprenta_digital_proveedor?: string;
+  imprenta_digital_rif?: string;
+  imprenta_digital_autorizacion?: string;
+  imprenta_digital_hash?: string;
+  imprenta_digital_url?: string;
+  imprenta_digital_fecha_asignacion?: string;
+
   items: {
     producto_id: number;
     nombre: string;
@@ -114,6 +144,40 @@ export interface Venta {
     es_exento: boolean;
     iva_monto_ves?: number;
   }[];
+}
+
+export type ImprentaDigitalProviderVE =
+  | 'THE_FACTORY_HKA'   // The Factory HKA Venezuela, C.A. (J-31217119-7)
+  | 'UNIDIGITAL'        // Unidigital, C.A. (J-40119283-4)
+  | 'SERDIMPRE'         // Servicios Digitales de Impresión Serdimpre, C.A.
+  | 'IMPRENTA_CUSTOM'   // Otra Imprenta Digital Autorizada SENIAT (API REST Estándar)
+  | 'MODO_DEMO_SENIAT'; // Simulador de Homologación SNAT/2024/000102
+
+export interface DigitalPrinterConfig {
+  enabled: boolean;
+  proveedor: ImprentaDigitalProviderVE;
+  nombreImprenta: string;
+  rifImprenta: string;
+  providenciaAutorizacion: string; // Ej: SNAT/INTI/2025/00045
+  apiEndpointUrl: string;
+  apiTokenKey: string;
+  serieControlPrefix: string;      // Ej: "00" o "FD-01"
+  modoSimulacion: boolean;         // Permite probar asignación de N° Control sin consumir timbre real
+  autoTransmitirAlFacturar: boolean;
+  enviarCopiaClienteEmail: boolean;
+}
+
+export interface DigitalInvoiceEmissionResult {
+  exito: boolean;
+  numeroFactura: string;
+  numeroControlAsignado: string;
+  fechaHoraAsignacion: string;
+  proveedorImprenta: string;
+  rifImprenta: string;
+  autorizacionSeniat: string;
+  firmaDigitalHash: string;
+  urlConsultaQr: string;
+  mensaje: string;
 }
 
 export type SmartPosModelVE =
@@ -255,12 +319,14 @@ export interface CierreCajaRecord {
 // ============================================================================
 export type LicenseStatus = 'ACTIVO' | 'POR_VENCER' | 'VENCIDO' | 'SUSPENDIDO' | 'DESCONECTADO_GRACIA';
 
+export type ContractedEdition = 'bodega' | 'fiscal' | 'ambas';
+
 export interface RemoteClientLicense {
   cliente_id: string;              // Ej: "BDG-2026-9482"
   nombre_negocio: string;          // Ej: "Bodega La Esperanza"
   rif_cedula: string;              // Ej: "V-18492041-0"
   telefono_contacto: string;       // Ej: "+58 412-1234567"
-  edicion_contratada: 'bodega' | 'fiscal';
+  edicion_contratada: ContractedEdition;
   cuota_mensual_usd: number;       // 15$ Bodega, 30$ Fiscal
   monto_instalacion_usd: number;   // 50$ Instalación inicial
   fecha_instalacion: string;       // "2026-09-01"
@@ -268,6 +334,7 @@ export interface RemoteClientLicense {
   estado_remoto: 'ACTIVO' | 'SUSPENDIDO'; // Estado que tú cambias desde tu panel/Sheets
   dias_gracia_offline_max: number;  // Días permitidos sin internet (ej: 3 a 5 días)
   ultimo_contacto_servidor: string; // Fecha y hora del último ping a la nube
+  version_instalada?: string;      // Versión instalada en el equipo cliente (ej. "2.7.0")
   motivo_bloqueo?: string;         // Ej: "Mensualidad de Octubre pendiente. Reporte su pago al WhatsApp"
   observaciones?: string;
 }
@@ -280,7 +347,7 @@ export interface LicenseCheckResult {
   mensajeAlerta: string;
   bloqueante: boolean;
   negocioNombre: string;
-  edicion: 'bodega' | 'fiscal';
+  edicion: ContractedEdition;
   cuotaMensual: number;
   telefonoSoporte: string;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useDeferredValue } from "react";
 import {
   Producto,
   CartItem,
@@ -6,10 +6,24 @@ import {
   MetodoPagoFiscal,
   WizarPosTransactionResult,
   PosOperationalMode,
+  PagoMixtoItem,
+  DigitalPrinterConfig,
 } from "../types";
 import { EMISOR_FISCAL_DEFAULT, getStoredEmisorFiscal, getStoredNegocioConfig } from "../mockDb";
 import { WizarPosModal } from "./WizarPosModal";
 import { WizarPosConfigModal } from "./WizarPosConfigModal";
+import { DigitalPrinterConfigModal } from "./DigitalPrinterConfigModal";
+import {
+  getDigitalPrinterConfig,
+  requestDigitalPrinterControlNumber,
+} from "../services/digitalPrinterService";
+import {
+  useResizableColumns,
+  ColumnResizeHandle,
+  ColumnConfiguratorToolbar,
+  ColumnDef,
+} from "./ColumnResizer";
+import { useHardwareBarcodeScanner } from "../hooks/useHardwareBarcodeScanner";
 import {
   Search,
   ShoppingCart,
@@ -50,7 +64,20 @@ interface PosViewProps {
     numeroFactura: string,
     numeroControl: string,
     aplicaIgtfCustom?: boolean,
-    posMetadata?: { referencia?: string; lote?: string; aprobacion?: string; terminal?: string }
+    posMetadata?: {
+      referencia?: string;
+      lote?: string;
+      aprobacion?: string;
+      terminal?: string;
+      pagos_mixtos?: PagoMixtoItem[];
+      monto_base_igtf_usd?: number;
+      imprenta_digital_proveedor?: string;
+      imprenta_digital_rif?: string;
+      imprenta_digital_autorizacion?: string;
+      imprenta_digital_hash?: string;
+      imprenta_digital_url?: string;
+      imprenta_digital_fecha_asignacion?: string;
+    }
   ) => Venta;
   posMode?: PosOperationalMode;
   onTogglePosMode?: (mode: PosOperationalMode) => void;
@@ -65,6 +92,7 @@ export const PosView: React.FC<PosViewProps> = ({
   onTogglePosMode,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<MetodoPagoFiscal>(
     posMode === "smartpos" ? "Punto de Venta" : "Divisas en Efectivo"
@@ -75,6 +103,35 @@ export const PosView: React.FC<PosViewProps> = ({
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showWizarPosModal, setShowWizarPosModal] = useState(false);
   const [showWizarPosConfigModal, setShowWizarPosConfigModal] = useState(false);
+  const [showDigitalPrinterModal, setShowDigitalPrinterModal] = useState(false);
+  const [digitalPrinterConfig, setDigitalPrinterConfig] = useState<DigitalPrinterConfig>(() =>
+    getDigitalPrinterConfig()
+  );
+  const [isAssigningDigitalControl, setIsAssigningDigitalControl] = useState(false);
+
+  const posCartColumns = useMemo<ColumnDef[]>(
+    () => [
+      { key: "idx", label: "#", defaultWidth: 50, minWidth: 40, maxWidth: 110 },
+      { key: "articulo", label: "Artículo / Descripción", defaultWidth: 220, minWidth: 120, maxWidth: 480 },
+      { key: "alic", label: "Alic.", defaultWidth: 80, minWidth: 60, maxWidth: 160 },
+      { key: "unit_usd", label: "P. Unit ($)", defaultWidth: 95, minWidth: 70, maxWidth: 200 },
+      { key: "unit_ves", label: "P. Unit (Bs.)", defaultWidth: 105, minWidth: 75, maxWidth: 220 },
+      { key: "cant", label: "Cant.", defaultWidth: 105, minWidth: 80, maxWidth: 200 },
+      { key: "total_usd", label: "Total ($)", defaultWidth: 95, minWidth: 70, maxWidth: 200 },
+      { key: "total_ves", label: "Total (Bs.)", defaultWidth: 105, minWidth: 75, maxWidth: 220 },
+      { key: "quitar", label: "Quitar", defaultWidth: 65, minWidth: 50, maxWidth: 130 },
+    ],
+    []
+  );
+
+  const colResizer = useResizableColumns("pos_cart_table", posCartColumns);
+
+  // Estados para Pago Mixto ($ + Bs) (Punto 2)
+  const [mixtoUsdInput, setMixtoUsdInput] = useState<string>("");
+  const [mixtoMetodoBs, setMixtoMetodoBs] = useState<
+    "Pago Móvil" | "Punto de Venta" | "Transferencia Bs" | "Efectivo Bs"
+  >("Pago Móvil");
+  const [mixtoRefBs, setMixtoRefBs] = useState<string>("");
 
   // WizarPos cached IP for quick display
   const [wizarPosIp, setWizarPosIp] = useState<string>(() => {
@@ -106,28 +163,27 @@ export const PosView: React.FC<PosViewProps> = ({
   // User selection for applying IGTF (3%) - button/toggle selectable by user
   const [aplicaIgtf, setAplicaIgtf] = useState<boolean>(false);
 
-  // Global Hardware Barcode Scanner listener state & refs
-  const barcodeBufferRef = useRef<string>("");
-  const lastKeyTimeRef = useRef<number>(0);
-  const [lastScannedProduct, setLastScannedProduct] = useState<string | null>(null);
-
   const fullRif = `${rifPrefix}-${rifNumber.trim()}`;
 
   const handleSelectPaymentMethod = (metodo: MetodoPagoFiscal) => {
     setPaymentMethod(metodo);
     setTenderedAmount("");
-    // Sugerencia automática inicial: si es divisa/cripto sugiere IGTF activo, si es Bs inactivo
-    if (metodo === "Divisas en Efectivo" || metodo === "Criptoactivos") {
+    // Sugerencia automática inicial: si es divisa/cripto o pago mixto sugiere IGTF activo
+    if (
+      metodo === "Divisas en Efectivo" ||
+      metodo === "Criptoactivos" ||
+      metodo === "Pago Mixto ($ + Bs)"
+    ) {
       setAplicaIgtf(true);
     } else {
       setAplicaIgtf(false);
     }
   };
 
-  // Filter products for quick search dropdown
+  // Filter products for quick search dropdown using deferredSearchQuery
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase().trim();
+    if (!deferredSearchQuery.trim()) return [];
+    const q = deferredSearchQuery.toLowerCase().trim();
     return products
       .filter(
         (p) =>
@@ -135,7 +191,7 @@ export const PosView: React.FC<PosViewProps> = ({
           (p.codigo_barras && p.codigo_barras.toLowerCase().includes(q))
       )
       .slice(0, 6);
-  }, [products, searchQuery]);
+  }, [products, deferredSearchQuery]);
 
   // Detailed Fiscal Breakdown
   const fiscalTotals = useMemo(() => {
@@ -155,9 +211,21 @@ export const PosView: React.FC<PosViewProps> = ({
     const ivaUsd = Math.round(baseImponibleUsd * 0.16 * 100) / 100; // 16% IVA General
     const subtotalConIvaUsd = Math.round((baseExentaUsd + baseImponibleUsd + ivaUsd) * 100) / 100;
 
-    // IGTF 3% condicional según selección del usuario
-    const igtfUsd = aplicaIgtf ? Math.round(subtotalConIvaUsd * 0.03 * 100) / 100 : 0;
+    // En modo Pago Mixto, el IGTF 3% se calcula únicamente sobre el monto abonado en divisas ($)
+    const isMixto = paymentMethod === "Pago Mixto ($ + Bs)";
+    const rawMixtoUsd = Math.max(0, parseFloat(mixtoUsdInput) || 0);
+    const mixtoBaseUsd = isMixto ? Math.min(subtotalConIvaUsd, rawMixtoUsd) : subtotalConIvaUsd;
+
+    const igtfUsd =
+      aplicaIgtf && mixtoBaseUsd > 0 ? Math.round(mixtoBaseUsd * 0.03 * 100) / 100 : 0;
     const totalUsd = Math.round((subtotalConIvaUsd + igtfUsd) * 100) / 100;
+
+    // Restante en Bs cuando es Pago Mixto
+    const mixtoRemainingUsd = isMixto
+      ? Math.max(0, Math.round((subtotalConIvaUsd - mixtoBaseUsd) * 100) / 100)
+      : 0;
+    const mixtoRemainingVes = Math.round(mixtoRemainingUsd * bcvRate * 100) / 100;
+    const mixtoTotalUsdToDeliver = Math.round((mixtoBaseUsd + igtfUsd) * 100) / 100;
 
     // Equivalencias en Bolívares (VES) a Tasa BCV redondeadas al céntimo (Reglamento Ley IVA)
     const baseExentaVes = Math.round(baseExentaUsd * bcvRate * 100) / 100;
@@ -172,6 +240,7 @@ export const PosView: React.FC<PosViewProps> = ({
       baseExentaUsd,
       baseImponibleUsd,
       ivaUsd,
+      subtotalConIvaUsd,
       igtfUsd,
       totalUsd,
       baseExentaVes,
@@ -180,11 +249,19 @@ export const PosView: React.FC<PosViewProps> = ({
       igtfVes,
       totalVes,
       totalItems,
+      mixtoBaseUsd,
+      mixtoRemainingUsd,
+      mixtoRemainingVes,
+      mixtoTotalUsdToDeliver,
     };
-  }, [cart, aplicaIgtf, bcvRate]);
+  }, [cart, aplicaIgtf, bcvRate, paymentMethod, mixtoUsdInput]);
 
   // Change Calculation (en USD o Bs. según el método)
   const changeAmount = useMemo(() => {
+    if (paymentMethod === "Pago Mixto ($ + Bs)") {
+      const rawUsd = parseFloat(mixtoUsdInput) || 0;
+      return Math.max(0, Math.round((rawUsd - fiscalTotals.mixtoTotalUsdToDeliver) * 100) / 100);
+    }
     const tendered = parseFloat(tenderedAmount) || 0;
     if (paymentMethod === "Divisas en Efectivo") {
       return Math.max(0, tendered - fiscalTotals.totalUsd);
@@ -192,7 +269,7 @@ export const PosView: React.FC<PosViewProps> = ({
       // Bolívares
       return Math.max(0, tendered - fiscalTotals.totalVes);
     }
-  }, [paymentMethod, tenderedAmount, fiscalTotals]);
+  }, [paymentMethod, tenderedAmount, fiscalTotals, mixtoUsdInput]);
 
   // Stock check strictly forbidding negative inventory (LISLR Art. 177)
   const handleAddToCart = (product: Producto) => {
@@ -280,62 +357,30 @@ export const PosView: React.FC<PosViewProps> = ({
     setStockError(null);
   };
 
-  // Global Hardware Barcode Scanner Listener for Fiscal POS
-  // Scans barcodes directly without requiring focus on the search input
-  useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // If user is typing in an input, textarea or editable field, allow normal typing
-      const activeTag = (document.activeElement?.tagName || "").toLowerCase();
-      const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
-      if (activeTag === "input" || activeTag === "textarea" || isEditable) {
-        return;
-      }
-
-      // If any modal dialog is open, do not intercept
-      if (showTicketModal || showWizarPosModal || showWizarPosConfigModal) {
-        return;
-      }
-
-      const currentTime = Date.now();
-      // Hardware scanners send characters with sub-50ms intervals
-      if (currentTime - lastKeyTimeRef.current > 100) {
-        barcodeBufferRef.current = "";
-      }
-      lastKeyTimeRef.current = currentTime;
-
-      if (e.key === "Enter") {
-        const scannedCode = barcodeBufferRef.current.trim();
-        if (scannedCode.length >= 2) {
-          const found = products.find(
-            (p) =>
-              (p.codigo_barras && p.codigo_barras.toLowerCase() === scannedCode.toLowerCase()) ||
-              p.id.toString() === scannedCode ||
-              (p.codigo_interno && p.codigo_interno.toLowerCase() === scannedCode.toLowerCase())
-          );
-
-          if (found) {
-            handleAddToCart(found);
-            setLastScannedProduct(found.nombre);
-            setTimeout(() => setLastScannedProduct(null), 2500);
-          } else {
-            setStockError(`⚠️ Producto no encontrado para el código escaneado: "${scannedCode}"`);
-          }
-        }
-        barcodeBufferRef.current = "";
-      } else if (e.key.length === 1) {
-        barcodeBufferRef.current += e.key;
-      }
-    };
-
-    window.addEventListener("keydown", handleGlobalKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleGlobalKeyDown);
-    };
-  }, [products, showTicketModal, showWizarPosModal, showWizarPosConfigModal]);
+  // Global Hardware Barcode Scanner Listener with O(1) Map lookup
+  const { lastScannedProduct, findProductByCode } = useHardwareBarcodeScanner({
+    products,
+    enabled:
+      !showTicketModal &&
+      !showWizarPosModal &&
+      !showWizarPosConfigModal &&
+      !showDigitalPrinterModal,
+    onScanMatch: (found) => {
+      handleAddToCart(found);
+    },
+    onScanNotFound: (scannedCode) => {
+      setStockError(`⚠️ Producto no encontrado para el código escaneado: "${scannedCode}"`);
+    },
+  });
 
   const handleQuickKeySearch = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && searchResults.length > 0) {
-      handleAddToCart(searchResults[0]);
+    if (e.key === "Enter") {
+      const exactMatch = findProductByCode(searchQuery);
+      if (exactMatch) {
+        handleAddToCart(exactMatch);
+      } else if (searchResults.length > 0) {
+        handleAddToCart(searchResults[0]);
+      }
     }
   };
 
@@ -353,8 +398,17 @@ export const PosView: React.FC<PosViewProps> = ({
       }
     }
 
-    // Si la forma de pago es Punto de Venta y estamos en modo SmartPOS, abrir modal TCP/IP con el terminal
-    if (paymentMethod === "Punto de Venta" && posMode === "smartpos") {
+    // Si la forma de pago es Punto de Venta (total o tramo en Bs. de Pago Mixto) y estamos en modo SmartPOS, abrir modal TCP/IP con el terminal
+    const isMixtoPuntoDeVenta =
+      paymentMethod === "Pago Mixto ($ + Bs)" &&
+      mixtoMetodoBs === "Punto de Venta" &&
+      fiscalTotals.mixtoRemainingVes > 0;
+
+    if ((paymentMethod === "Punto de Venta" || isMixtoPuntoDeVenta) && posMode === "smartpos") {
+      if (paymentMethod === "Pago Mixto ($ + Bs)" && fiscalTotals.mixtoBaseUsd <= 0 && fiscalTotals.mixtoRemainingUsd <= 0) {
+        setStockError("⚠️ Ingrese el monto en divisas ($) para dividir el pago mixto.");
+        return;
+      }
       setShowWizarPosModal(true);
       return;
     }
@@ -363,12 +417,136 @@ export const PosView: React.FC<PosViewProps> = ({
     executeSaleCompletion();
   };
 
-  const executeSaleCompletion = (posData?: {
+  const executeSaleCompletion = async (posData?: {
     referencia?: string;
     lote?: string;
     aprobacion?: string;
     terminal?: string;
   }) => {
+    // Si el conector de Imprenta Digital Autorizada (SNAT/2024/000102) está activo, solicitar N° de Control telemático
+    let assignedControlNumber = customControl;
+    let digitalMetadata: {
+      imprenta_digital_proveedor?: string;
+      imprenta_digital_rif?: string;
+      imprenta_digital_autorizacion?: string;
+      imprenta_digital_hash?: string;
+      imprenta_digital_url?: string;
+      imprenta_digital_fecha_asignacion?: string;
+    } = {};
+
+    if (digitalPrinterConfig.enabled) {
+      setIsAssigningDigitalControl(true);
+      try {
+        const emisor = getStoredEmisorFiscal();
+        const digitalRes = await requestDigitalPrinterControlNumber(
+          {
+            emisorRif: emisor.rif,
+            emisorRazonSocial: emisor.razon_social,
+            clienteRif: fullRif,
+            clienteNombre: clienteNombre,
+            clienteDireccion: clienteDireccion,
+            numeroFactura: customFactura,
+            correlativoControlBase: correlativos.controlNum,
+            tasaBcv: bcvRate,
+            baseExentaVes: fiscalTotals.baseExentaVes,
+            baseImponibleVes: fiscalTotals.baseImponibleVes,
+            ivaVes: fiscalTotals.ivaVes,
+            igtfVes: fiscalTotals.igtfVes,
+            totalVes: fiscalTotals.totalVes,
+            totalUsd: fiscalTotals.totalUsd,
+            items: cart.map((it) => ({
+              descripcion: it.producto.nombre,
+              cantidad: it.cantidad,
+              precioUnitarioVes: Math.round(it.precio_unitario * bcvRate * 100) / 100,
+              alicuotaIva: it.alicuota_iva,
+              subtotalVes: Math.round(it.subtotal * bcvRate * 100) / 100,
+            })),
+          },
+          digitalPrinterConfig
+        );
+
+        if (digitalRes.exito) {
+          assignedControlNumber = digitalRes.numeroControlAsignado;
+          setCustomControl(assignedControlNumber);
+          digitalMetadata = {
+            imprenta_digital_proveedor: digitalRes.proveedorImprenta,
+            imprenta_digital_rif: digitalRes.rifImprenta,
+            imprenta_digital_autorizacion: digitalRes.autorizacionSeniat,
+            imprenta_digital_hash: digitalRes.firmaDigitalHash,
+            imprenta_digital_url: digitalRes.urlConsultaQr,
+            imprenta_digital_fecha_asignacion: digitalRes.fechaHoraAsignacion,
+          };
+        }
+      } catch (err) {
+        console.warn("[PosView] Error comunicando con Imprenta Digital:", err);
+      } finally {
+        setIsAssigningDigitalControl(false);
+      }
+    }
+
+    if (paymentMethod === "Pago Mixto ($ + Bs)") {
+      const usdAmount = fiscalTotals.mixtoBaseUsd;
+      const remUsd = fiscalTotals.mixtoRemainingUsd;
+      const remVes = fiscalTotals.mixtoRemainingVes;
+
+      if (usdAmount <= 0 && remUsd <= 0) {
+        setStockError("⚠️ Ingrese el monto en divisas ($) para dividir el pago mixto.");
+        return;
+      }
+
+      const pagosMixtos: PagoMixtoItem[] = [];
+      if (usdAmount > 0) {
+        pagosMixtos.push({
+          metodo: "Divisas en Efectivo",
+          moneda: "USD",
+          monto_usd: usdAmount,
+          monto_ves: Math.round(usdAmount * bcvRate * 100) / 100,
+          aplica_igtf: aplicaIgtf,
+        });
+      }
+      if (remUsd > 0) {
+        pagosMixtos.push({
+          metodo: mixtoMetodoBs,
+          moneda: "VES",
+          monto_usd: remUsd,
+          monto_ves: remVes,
+          referencia: mixtoRefBs.trim() || posData?.referencia || undefined,
+          aplica_igtf: false,
+        });
+      }
+
+      const sale = onCompleteSale(
+        cart,
+        paymentMethod,
+        fiscalTotals.totalVes,
+        changeAmount,
+        fullRif,
+        clienteNombre,
+        clienteDireccion,
+        customFactura,
+        assignedControlNumber,
+        aplicaIgtf,
+        {
+          ...posData,
+          ...digitalMetadata,
+          referencia: mixtoRefBs.trim() || posData?.referencia,
+          pagos_mixtos: pagosMixtos,
+          monto_base_igtf_usd: usdAmount,
+        }
+      );
+
+      setCompletedSale(sale);
+      setCart([]);
+      setTenderedAmount("");
+      setMixtoUsdInput("");
+      setMixtoRefBs("");
+
+      if (printTicket) {
+        setShowTicketModal(true);
+      }
+      return;
+    }
+
     const totalToPay =
       paymentMethod === "Divisas en Efectivo"
         ? fiscalTotals.totalUsd
@@ -379,8 +557,8 @@ export const PosView: React.FC<PosViewProps> = ({
 
     if (tendered < totalToPay - 0.01) {
       const monedaSimbolo = paymentMethod === "Divisas en Efectivo" ? "$" : "Bs.";
-      alert(
-        `El monto recibido (${monedaSimbolo}${tendered.toFixed(2)}) es menor al total a liquidar (${monedaSimbolo}${totalToPay.toFixed(2)}).`
+      setStockError(
+        `⚠️ El monto recibido (${monedaSimbolo}${tendered.toFixed(2)}) es menor al total a liquidar (${monedaSimbolo}${totalToPay.toFixed(2)}).`
       );
       return;
     }
@@ -394,9 +572,12 @@ export const PosView: React.FC<PosViewProps> = ({
       clienteNombre,
       clienteDireccion,
       customFactura,
-      customControl,
+      assignedControlNumber,
       aplicaIgtf,
-      posData
+      {
+        ...posData,
+        ...digitalMetadata,
+      }
     );
 
     setCompletedSale(sale);
@@ -513,12 +694,33 @@ export const PosView: React.FC<PosViewProps> = ({
           </div>
         )}
 
-        {/* Formulario de Datos Fiscales del Cliente (Providencia SNAT/00071) */}
+        {/* Formulario de Datos Fiscales del Cliente (Providencia SNAT/00071 & SNAT/2024/000102) */}
         <div className="bg-[#1a1d24] border border-slate-800 rounded-xl p-3 text-xs space-y-2.5">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-            <div className="flex items-center gap-1.5 font-bold text-slate-200 uppercase tracking-wider text-[11px]">
-              <FileText className="w-3.5 h-3.5 text-blue-400" />
-              <span>Datos Fiscales de Facturación (Providencia SNAT/00071)</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 font-bold text-slate-200 uppercase tracking-wider text-[11px]">
+                <FileText className="w-3.5 h-3.5 text-blue-400" />
+                <span>
+                  Datos Fiscales ({digitalPrinterConfig.enabled ? "Facturación Digital SNAT/2024/000102" : "Providencia SNAT/2011/00071"})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDigitalPrinterModal(true)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                  digitalPrinterConfig.enabled
+                    ? "bg-emerald-950/70 text-emerald-300 border-emerald-600/60 hover:bg-emerald-900/70"
+                    : "bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white"
+                }`}
+                title="Configurar Conector de Imprenta Digital Autorizada SENIAT (SNAT/2024/000102)"
+              >
+                <Settings className="w-3 h-3 text-emerald-400" />
+                <span>
+                  {digitalPrinterConfig.enabled
+                    ? `Imprenta Digital Activa (${digitalPrinterConfig.rifImprenta})`
+                    : "Conectar Imprenta Digital (SNAT/2024/000102)"}
+                </span>
+              </button>
             </div>
             <div className="flex items-center gap-3 font-mono text-[11px]">
               <span className="text-slate-400">
@@ -708,19 +910,90 @@ export const PosView: React.FC<PosViewProps> = ({
             )}
           </div>
 
+          <ColumnConfiguratorToolbar
+            controller={colResizer}
+            title="Configurar Tamaño de Columnas • Renglones de Facturación"
+          />
+
           <div className="flex-1 overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
+            <table
+              data-resizable-table={colResizer.tableId}
+              className="w-full text-left text-xs text-slate-300"
+            >
               <thead className="bg-[#12141a] text-slate-400 border-b border-slate-800 text-[11px] uppercase font-mono">
                 <tr>
-                  <th className="py-2.5 px-3 w-8 text-center">#</th>
-                  <th className="py-2.5 px-3">Artículo / Descripción</th>
-                  <th className="py-2.5 px-2 text-center">Alic.</th>
-                  <th className="py-2.5 px-3 text-right">P. Unit ($)</th>
-                  <th className="py-2.5 px-3 text-right">P. Unit (Bs.)</th>
-                  <th className="py-2.5 px-3 text-center">Cant.</th>
-                  <th className="py-2.5 px-3 text-right">Total ($)</th>
-                  <th className="py-2.5 px-3 text-right">Total (Bs.)</th>
-                  <th className="py-2.5 px-2 text-center w-10">Quitar</th>
+                  <th data-col="idx" className="py-2.5 px-3 text-center relative">
+                    <span className="pr-2">#</span>
+                    <ColumnResizeHandle
+                      colKey="idx"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
+                  <th data-col="articulo" className="py-2.5 px-3 relative">
+                    <span className="pr-2">Artículo / Descripción</span>
+                    <ColumnResizeHandle
+                      colKey="articulo"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
+                  <th data-col="alic" className="py-2.5 px-2 text-center relative">
+                    <span className="pr-2">Alic.</span>
+                    <ColumnResizeHandle
+                      colKey="alic"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
+                  <th data-col="unit_usd" className="py-2.5 px-3 text-right relative">
+                    <span className="pr-2">P. Unit ($)</span>
+                    <ColumnResizeHandle
+                      colKey="unit_usd"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
+                  <th data-col="unit_ves" className="py-2.5 px-3 text-right relative">
+                    <span className="pr-2">P. Unit (Bs.)</span>
+                    <ColumnResizeHandle
+                      colKey="unit_ves"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
+                  <th data-col="cant" className="py-2.5 px-3 text-center relative">
+                    <span className="pr-2">Cant.</span>
+                    <ColumnResizeHandle
+                      colKey="cant"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
+                  <th data-col="total_usd" className="py-2.5 px-3 text-right relative">
+                    <span className="pr-2">Total ($)</span>
+                    <ColumnResizeHandle
+                      colKey="total_usd"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
+                  <th data-col="total_ves" className="py-2.5 px-3 text-right relative">
+                    <span className="pr-2">Total (Bs.)</span>
+                    <ColumnResizeHandle
+                      colKey="total_ves"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
+                  <th data-col="quitar" className="py-2.5 px-2 text-center relative">
+                    <span className="pr-2">Quitar</span>
+                    <ColumnResizeHandle
+                      colKey="quitar"
+                      resizingCol={colResizer.resizingCol}
+                      onStartResize={colResizer.startResize}
+                    />
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -742,16 +1015,16 @@ export const PosView: React.FC<PosViewProps> = ({
                     const unitVes = item.precio_unitario * bcvRate;
                     return (
                       <tr key={item.producto.id} className="hover:bg-slate-800/30">
-                        <td className="py-2 px-3 text-center text-slate-500 font-mono text-[11px]">
+                        <td data-col="idx" className="py-2 px-3 text-center text-slate-500 font-mono text-[11px]">
                           {index + 1}
                         </td>
-                        <td className="py-2 px-3">
-                          <span className="font-semibold text-white block">{item.producto.nombre}</span>
+                        <td data-col="articulo" className="py-2 px-3 truncate">
+                          <span className="font-semibold text-white block truncate">{item.producto.nombre}</span>
                           <span className="text-[10px] text-slate-500 font-mono">
                             Stock disp: {item.producto.stock_actual}
                           </span>
                         </td>
-                        <td className="py-2 px-2 text-center">
+                        <td data-col="alic" className="py-2 px-2 text-center">
                           <span
                             className={`text-[10px] font-mono px-1 py-0.5 rounded font-bold ${
                               item.alicuota_iva === 0
@@ -762,13 +1035,13 @@ export const PosView: React.FC<PosViewProps> = ({
                             {item.alicuota_iva === 0 ? "E (0%)" : "G (16%)"}
                           </span>
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-slate-300 text-xs">
+                        <td data-col="unit_usd" className="py-2 px-3 text-right font-mono text-slate-300 text-xs">
                           ${item.precio_unitario.toFixed(2)}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-amber-300/80 text-xs">
+                        <td data-col="unit_ves" className="py-2 px-3 text-right font-mono text-amber-300/80 text-xs">
                           Bs. {unitVes.toFixed(2)}
                         </td>
-                        <td className="py-2 px-3 text-center">
+                        <td data-col="cant" className="py-2 px-3 text-center">
                           <div className="inline-flex items-center border border-slate-700 rounded-lg bg-[#12141a]">
                             <button
                               onClick={() => handleUpdateQuantity(item.producto.id, -1)}
@@ -788,13 +1061,13 @@ export const PosView: React.FC<PosViewProps> = ({
                             </button>
                           </div>
                         </td>
-                        <td className="py-2 px-3 text-right font-mono font-bold text-emerald-400 text-xs">
+                        <td data-col="total_usd" className="py-2 px-3 text-right font-mono font-bold text-emerald-400 text-xs">
                           ${item.subtotal.toFixed(2)}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono font-bold text-amber-300 text-xs">
+                        <td data-col="total_ves" className="py-2 px-3 text-right font-mono font-bold text-amber-300 text-xs">
                           Bs. {subtotalVes.toFixed(2)}
                         </td>
-                        <td className="py-2 px-2 text-center">
+                        <td data-col="quitar" className="py-2 px-2 text-center">
                           <button
                             onClick={() => handleRemoveItem(item.producto.id)}
                             className="p-1 text-slate-500 hover:text-rose-400 rounded transition-colors"
@@ -1031,10 +1304,12 @@ export const PosView: React.FC<PosViewProps> = ({
                   "Transferencia Bs",
                   "Divisas en Efectivo",
                   "Criptoactivos",
+                  "Pago Mixto ($ + Bs)",
                 ] as MetodoPagoFiscal[]
               ).map((metodo) => {
                 const isDivisa =
                   metodo === "Divisas en Efectivo" || metodo === "Criptoactivos";
+                const isMixto = metodo === "Pago Mixto ($ + Bs)";
                 const isSelected = paymentMethod === metodo;
                 const isPos = metodo === "Punto de Venta";
                 return (
@@ -1042,16 +1317,20 @@ export const PosView: React.FC<PosViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSelectPaymentMethod(metodo)}
-                      className={`w-full px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between border transition-all ${
+                      className={`w-full px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between border transition-all cursor-pointer ${
                         isSelected
-                          ? isDivisa
+                          ? isMixto
+                            ? "bg-emerald-950/90 border-emerald-500 text-emerald-300 shadow"
+                            : isDivisa
                             ? "bg-amber-950/80 border-amber-500 text-amber-300 shadow"
                             : "bg-blue-600/90 border-blue-500 text-white shadow"
                           : "bg-[#12141a] border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60"
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        {isDivisa ? (
+                        {isMixto ? (
+                          <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : isDivisa ? (
                           <DollarSign className="w-3.5 h-3.5 text-amber-400" />
                         ) : (
                           <CreditCard className="w-3.5 h-3.5 text-blue-400" />
@@ -1070,6 +1349,12 @@ export const PosView: React.FC<PosViewProps> = ({
                             Datáfono Externo
                           </span>
                         )
+                      )}
+
+                      {isMixto && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-700/60">
+                          Multipago $ + Bs.
+                        </span>
                       )}
 
                       {isDivisa && (
@@ -1118,52 +1403,171 @@ export const PosView: React.FC<PosViewProps> = ({
             </div>
           </div>
 
-          {/* Tendered Amount & Change Calculation */}
-          <div className="p-3 bg-[#14161c] border border-slate-800 rounded-xl space-y-2 text-xs">
-            <div className="flex justify-between items-center">
-              <label className="text-slate-400 font-semibold">
-                Monto Recibido ({paymentMethod === "Divisas en Efectivo" ? "USD $" : "Bs."}):
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder={
-                  paymentMethod === "Divisas en Efectivo"
-                    ? fiscalTotals.totalUsd.toFixed(2)
-                    : fiscalTotals.totalVes.toFixed(2)
-                }
-                value={tenderedAmount}
-                onChange={(e) => setTenderedAmount(e.target.value)}
-                className="w-28 bg-[#181a20] border border-slate-700 rounded-lg px-2.5 py-1 text-right text-white font-mono text-sm font-bold focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* Quick Cash Buttons for USD */}
-            {paymentMethod === "Divisas en Efectivo" && (
-              <div className="grid grid-cols-4 gap-1 pt-1">
-                {[5, 10, 20, 50].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setTenderedAmount(val.toString())}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 rounded py-1 text-[11px] font-mono transition-colors"
-                  >
-                    ${val}
-                  </button>
-                ))}
+          {/* Panel de Pago Mixto ($ + Bs) vs Monto Simple */}
+          {paymentMethod === "Pago Mixto ($ + Bs)" ? (
+            <div className="p-3 bg-emerald-950/20 border border-emerald-500/40 rounded-xl space-y-2.5 text-xs">
+              <div className="flex items-center justify-between border-b border-emerald-800/40 pb-1.5">
+                <span className="font-bold text-emerald-300 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Calculadora de Pago Mixto ($ + Bs.)</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  Base: ${fiscalTotals.subtotalConIvaUsd.toFixed(2)}
+                </span>
               </div>
-            )}
 
-            {/* Change Box */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-              <span className="text-slate-400 font-semibold">Cambio a Entregar:</span>
-              <span className="text-base font-bold font-mono text-emerald-400">
-                {paymentMethod === "Divisas en Efectivo"
-                  ? `$${changeAmount.toFixed(2)} (Bs. ${(changeAmount * bcvRate).toFixed(2)})`
-                  : `Bs. ${changeAmount.toFixed(2)}`}
-              </span>
+              {/* 1. Monto entregado en Divisas ($) */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <label className="text-amber-300 font-semibold">
+                    1. Abono en Divisas (USD $):
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={mixtoUsdInput}
+                    onChange={(e) => setMixtoUsdInput(e.target.value)}
+                    className="w-28 bg-[#12141a] border border-amber-500/60 rounded-lg px-2.5 py-1 text-right text-amber-300 font-mono text-sm font-bold focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {[5, 10, 20].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setMixtoUsdInput(val.toString())}
+                      className="bg-slate-800/80 hover:bg-slate-700 text-amber-300 rounded py-1 text-[10px] font-mono transition-colors cursor-pointer"
+                    >
+                      ${val}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMixtoUsdInput((fiscalTotals.subtotalConIvaUsd / 2).toFixed(2))
+                    }
+                    className="bg-slate-800/80 hover:bg-slate-700 text-emerald-300 rounded py-1 text-[10px] font-semibold transition-colors cursor-pointer"
+                  >
+                    50% Mitad
+                  </button>
+                </div>
+                {aplicaIgtf && fiscalTotals.mixtoBaseUsd > 0 && (
+                  <div className="flex justify-between text-[10px] text-amber-400/90 font-mono pt-0.5">
+                    <span>+3% IGTF (solo sobre ${fiscalTotals.mixtoBaseUsd.toFixed(2)}):</span>
+                    <span>
+                      +${fiscalTotals.igtfUsd.toFixed(2)} (Bs. {fiscalTotals.igtfVes.toFixed(2)})
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Restante automático en Bolívares */}
+              <div className="p-2.5 rounded-lg bg-[#12141a] border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-blue-300 font-semibold">
+                    2. Restante a cobrar en Bs.:
+                  </span>
+                  <div className="text-right font-mono">
+                    <div className="text-sm font-black text-white">
+                      Bs. {fiscalTotals.mixtoRemainingVes.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      (Equiv. ${fiscalTotals.mixtoRemainingUsd.toFixed(2)} sin IGTF)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      "Pago Móvil",
+                      "Punto de Venta",
+                      "Transferencia Bs",
+                      "Efectivo Bs",
+                    ] as const
+                  ).map((mBs) => (
+                    <button
+                      key={mBs}
+                      type="button"
+                      onClick={() => setMixtoMetodoBs(mBs)}
+                      className={`px-2 py-1 rounded text-[10px] font-semibold border transition-all cursor-pointer ${
+                        mixtoMetodoBs === mBs
+                          ? "bg-blue-600 text-white border-blue-400"
+                          : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+                      }`}
+                    >
+                      {mBs}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="N° Referencia Pago Móvil / POS (Opcional)"
+                  value={mixtoRefBs}
+                  onChange={(e) => setMixtoRefBs(e.target.value)}
+                  className="w-full bg-[#181a22] border border-slate-700/80 rounded-lg px-2.5 py-1 text-[11px] text-white font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {changeAmount > 0 && (
+                <div className="flex items-center justify-between pt-1 border-t border-emerald-800/40">
+                  <span className="text-slate-300 font-semibold">Vuelto a Entregar:</span>
+                  <span className="text-xs font-bold font-mono text-emerald-400">
+                    ${changeAmount.toFixed(2)} (Bs. {(changeAmount * bcvRate).toFixed(2)})
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="p-3 bg-[#14161c] border border-slate-800 rounded-xl space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <label className="text-slate-400 font-semibold">
+                  Monto Recibido ({paymentMethod === "Divisas en Efectivo" ? "USD $" : "Bs."}):
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder={
+                    paymentMethod === "Divisas en Efectivo"
+                      ? fiscalTotals.totalUsd.toFixed(2)
+                      : fiscalTotals.totalVes.toFixed(2)
+                  }
+                  value={tenderedAmount}
+                  onChange={(e) => setTenderedAmount(e.target.value)}
+                  className="w-28 bg-[#181a20] border border-slate-700 rounded-lg px-2.5 py-1 text-right text-white font-mono text-sm font-bold focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Quick Cash Buttons for USD */}
+              {paymentMethod === "Divisas en Efectivo" && (
+                <div className="grid grid-cols-4 gap-1 pt-1">
+                  {[5, 10, 20, 50].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setTenderedAmount(val.toString())}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 rounded py-1 text-[11px] font-mono transition-colors"
+                    >
+                      ${val}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Change Box */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                <span className="text-slate-400 font-semibold">Cambio a Entregar:</span>
+                <span className="text-base font-bold font-mono text-emerald-400">
+                  {paymentMethod === "Divisas en Efectivo"
+                    ? `$${changeAmount.toFixed(2)} (Bs. ${(changeAmount * bcvRate).toFixed(2)})`
+                    : `Bs. ${changeAmount.toFixed(2)}`}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Print Checkbox */}
           <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 select-none">
@@ -1180,15 +1584,21 @@ export const PosView: React.FC<PosViewProps> = ({
           <button
             onClick={handleCheckout}
             id="btn-checkout-sale"
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || isAssigningDigitalControl}
             className={`w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-98 ${
-              cart.length === 0
+              cart.length === 0 || isAssigningDigitalControl
                 ? "bg-slate-800 text-slate-500 cursor-not-allowed"
                 : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40"
             }`}
           >
             <CreditCard className="w-4 h-4" />
-            <span>💳 COBRAR / EMITIR FACTURA FISCAL</span>
+            <span>
+              {isAssigningDigitalControl
+                ? "⏳ TIMBRANDO EN IMPRENTA DIGITAL SENIAT..."
+                : digitalPrinterConfig.enabled
+                ? "💳 EMITIR FACTURA DIGITAL (SNAT/2024/000102)"
+                : "💳 COBRAR / EMITIR FACTURA FISCAL"}
+            </span>
           </button>
 
           {completedSale && (
@@ -1322,10 +1732,11 @@ export const PosView: React.FC<PosViewProps> = ({
                       <span>BASE PERCEPCION IGTF (3%):</span>
                       <span>
                         Bs.{" "}
-                        {(
-                          completedSale.base_imponible_ves +
-                          completedSale.base_exenta_ves +
-                          completedSale.iva_ves
+                        {(completedSale.monto_base_igtf_usd !== undefined
+                          ? completedSale.monto_base_igtf_usd * completedSale.tasa_bcv
+                          : completedSale.base_imponible_ves +
+                            completedSale.base_exenta_ves +
+                            completedSale.iva_ves
                         ).toFixed(2)}
                       </span>
                     </div>
@@ -1359,16 +1770,33 @@ export const PosView: React.FC<PosViewProps> = ({
                   <span>FORMA DE PAGO:</span>
                   <span className="font-bold uppercase">{completedSale.metodo_pago}</span>
                 </div>
+                {completedSale.pagos_mixtos && completedSale.pagos_mixtos.length > 0 && (
+                  <div className="bg-amber-100/70 border border-amber-300 rounded p-1.5 my-1 space-y-0.5 text-[9.5px]">
+                    <div className="font-bold text-gray-800">DESGLOSE MULTIPAGO:</div>
+                    {completedSale.pagos_mixtos.map((pm, idx) => (
+                      <div key={idx} className="flex justify-between">
+                        <span>
+                          • {pm.metodo} {pm.referencia ? `(Ref: ${pm.referencia})` : ""}:
+                        </span>
+                        <span className="font-bold">
+                          ${pm.monto_usd.toFixed(2)} / Bs. {pm.monto_ves.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {completedSale.pos_referencia && (
                   <>
                     <div className="flex justify-between font-mono text-[9.5px] text-blue-900 font-bold">
-                      <span>REF. BANCARIA POS:</span>
+                      <span>REF. BANCARIA / PAGO:</span>
                       <span>{completedSale.pos_referencia}</span>
                     </div>
-                    <div className="flex justify-between font-mono text-[9px] text-gray-700">
-                      <span>LOTE / AUT:</span>
-                      <span>{completedSale.pos_lote || "001"} / {completedSale.pos_aprobacion || "OK"}</span>
-                    </div>
+                    {completedSale.pos_lote && (
+                      <div className="flex justify-between font-mono text-[9px] text-gray-700">
+                        <span>LOTE / AUT:</span>
+                        <span>{completedSale.pos_lote} / {completedSale.pos_aprobacion || "OK"}</span>
+                      </div>
+                    )}
                   </>
                 )}
                 <div className="flex justify-between">
@@ -1382,7 +1810,8 @@ export const PosView: React.FC<PosViewProps> = ({
                 <div className="flex justify-between">
                   <span>CAMBIO:</span>
                   <span>
-                    {completedSale.metodo_pago === "Divisas en Efectivo"
+                    {completedSale.metodo_pago === "Divisas en Efectivo" ||
+                    completedSale.metodo_pago === "Pago Mixto ($ + Bs)"
                       ? `$${completedSale.cambio.toFixed(2)}`
                       : `Bs. ${completedSale.cambio.toFixed(2)}`}
                   </span>
@@ -1390,9 +1819,35 @@ export const PosView: React.FC<PosViewProps> = ({
               </div>
 
               <div className="border-b border-dashed border-gray-400 my-1.5"></div>
-              <div className="text-center text-[9px] font-bold">
-                ESTA FACTURA CUMPLE CON EL ART. 13 DE LA PROVIDENCIA ADMINISTRATIVA SNAT/00071
-              </div>
+              {completedSale.imprenta_digital_proveedor ? (
+                <div className="bg-emerald-50 border border-emerald-300 rounded p-1.5 my-1 text-[8.5px] space-y-0.5 text-gray-900">
+                  <div className="font-bold text-center uppercase text-emerald-900">
+                    DOCUMENTO EMITIDO BAJO FACTURACIÓN DIGITAL (PROV. SNAT/2024/000102)
+                  </div>
+                  <div>
+                    <strong>IMPRENTA DIGITAL:</strong> {completedSale.imprenta_digital_proveedor}
+                  </div>
+                  <div className="flex justify-between">
+                    <span>
+                      <strong>RIF IMPRENTA:</strong> {completedSale.imprenta_digital_rif}
+                    </span>
+                    <span>
+                      <strong>AUT:</strong> {completedSale.imprenta_digital_autorizacion}
+                    </span>
+                  </div>
+                  <div>
+                    <strong>FECHA ASIGNACIÓN CONTROL:</strong>{" "}
+                    {completedSale.imprenta_digital_fecha_asignacion}
+                  </div>
+                  <div className="truncate font-mono text-[8px] text-emerald-950 font-bold">
+                    SELLO DIGITAL: {completedSale.imprenta_digital_hash}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-[9px] font-bold">
+                  ESTA FACTURA CUMPLE CON EL ART. 13 DE LA PROVIDENCIA ADMINISTRATIVA SNAT/2011/00071
+                </div>
+              )}
               <div className="text-center text-[8.5px] italic text-gray-700">
                 "{getStoredNegocioConfig().pieTicket || "¡Gracias por su compra!"}"
               </div>
@@ -1420,8 +1875,16 @@ export const PosView: React.FC<PosViewProps> = ({
       {/* WizarPOS Q2 Integration Modal */}
       <WizarPosModal
         isOpen={showWizarPosModal}
-        totalVes={fiscalTotals.totalVes}
-        totalUsd={fiscalTotals.totalUsd}
+        totalVes={
+          paymentMethod === "Pago Mixto ($ + Bs)" && fiscalTotals.mixtoRemainingVes > 0
+            ? fiscalTotals.mixtoRemainingVes
+            : fiscalTotals.totalVes
+        }
+        totalUsd={
+          paymentMethod === "Pago Mixto ($ + Bs)" && fiscalTotals.mixtoRemainingUsd > 0
+            ? fiscalTotals.mixtoRemainingUsd
+            : fiscalTotals.totalUsd
+        }
         facturaNumero={customFactura || `FAC-${new Date().getFullYear()}-0001`}
         clienteNombre={clienteNombre || "CONSUMIDOR FINAL"}
         clienteRif={fullRif}
@@ -1434,6 +1897,20 @@ export const PosView: React.FC<PosViewProps> = ({
         isOpen={showWizarPosConfigModal}
         onClose={() => setShowWizarPosConfigModal(false)}
         onSaved={(cfg) => setWizarPosIp(cfg.ip)}
+      />
+
+      {/* Conector de Imprenta Digital Autorizada SENIAT (Providencia SNAT/2024/000102) */}
+      <DigitalPrinterConfigModal
+        isOpen={showDigitalPrinterModal}
+        onClose={() => setShowDigitalPrinterModal(false)}
+        onSaved={(cfg) => {
+          setDigitalPrinterConfig(cfg);
+          if (cfg.serieControlPrefix) {
+            setCustomControl(
+              `${cfg.serieControlPrefix}-${correlativos.controlNum.toString().padStart(6, "0")}`
+            );
+          }
+        }}
       />
     </div>
     </div>

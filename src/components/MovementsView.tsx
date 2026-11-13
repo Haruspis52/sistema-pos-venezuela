@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useDeferredValue } from "react";
 import { Movimiento, Producto } from "../types";
 import { calcularPMP } from "../mockDb";
 import {
@@ -12,6 +12,13 @@ import {
   AlertTriangle,
   FileSpreadsheet,
 } from "lucide-react";
+import {
+  useResizableColumns,
+  ColumnResizeHandle,
+  ColumnConfiguratorToolbar,
+  ColumnDef,
+} from "./ColumnResizer";
+import { usePagination, TablePagination } from "./TablePagination";
 
 interface MovementsViewProps {
   movements: Movimiento[];
@@ -34,6 +41,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
 }) => {
   const [filterType, setFilterType] = useState<string>("TODOS");
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [showModal, setShowModal] = useState(false);
 
   // Form states
@@ -44,22 +52,43 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
   const [reason, setReason] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
 
+  const movementsColumns = useMemo<ColumnDef[]>(
+    () => [
+      { key: "id", label: "ID (#)", defaultWidth: 65, minWidth: 50, maxWidth: 150 },
+      { key: "fecha", label: "Fecha y Hora", defaultWidth: 145, minWidth: 95, maxWidth: 260 },
+      { key: "tipo", label: "Tipo", defaultWidth: 115, minWidth: 80, maxWidth: 200 },
+      { key: "producto", label: "Producto Afectado", defaultWidth: 240, minWidth: 130, maxWidth: 550 },
+      { key: "cantidad", label: "Cantidad", defaultWidth: 95, minWidth: 65, maxWidth: 180 },
+      { key: "costo", label: "Costo Mov. ($)", defaultWidth: 120, minWidth: 80, maxWidth: 220 },
+      { key: "pmp", label: "PMP Resultante ($)", defaultWidth: 140, minWidth: 90, maxWidth: 240 },
+      { key: "existencia", label: "Existencia", defaultWidth: 100, minWidth: 70, maxWidth: 190 },
+      { key: "motivo", label: "Motivo / Justificación", defaultWidth: 240, minWidth: 120, maxWidth: 520 },
+      { key: "factura", label: "Ref. Factura", defaultWidth: 120, minWidth: 80, maxWidth: 240 },
+      { key: "operador", label: "Operador", defaultWidth: 120, minWidth: 80, maxWidth: 240 },
+    ],
+    []
+  );
+
+  const colResizer = useResizableColumns("movements_kardex", movementsColumns);
+
   const selectedProduct = useMemo(() => {
     return products.find((p) => p.id === selectedProdId) || products[0];
   }, [products, selectedProdId]);
 
   const filteredMovements = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
     return movements.filter((m) => {
       const matchesType = filterType === "TODOS" || m.tipo === filterType;
-      const q = search.toLowerCase();
       const matchesSearch =
-        !search ||
+        !q ||
         (m.producto_nombre && m.producto_nombre.toLowerCase().includes(q)) ||
         (m.motivo && m.motivo.toLowerCase().includes(q)) ||
         (m.referencia_factura && m.referencia_factura.toLowerCase().includes(q));
       return matchesType && matchesSearch;
     });
-  }, [movements, filterType, search]);
+  }, [movements, filterType, deferredSearch]);
+
+  const pagination = usePagination(filteredMovements, 50, "movements_kardex");
 
   const handleExportCsv = () => {
     if (movements.length === 0) return;
@@ -217,21 +246,105 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
 
       {/* Movements Kardex Table with PMP and Resulting Stock */}
       <div className="bg-[#1a1d24] border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+        <ColumnConfiguratorToolbar
+          controller={colResizer}
+          title="Configurar Tamaño de Columnas • Kardex Tributario (Art. 177)"
+        />
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
+          <table
+            data-resizable-table={colResizer.tableId}
+            className="w-full text-left text-xs text-slate-300"
+          >
             <thead className="bg-[#12141a] text-slate-400 border-b border-slate-800 uppercase font-mono text-[11px]">
               <tr>
-                <th className="py-3 px-3 text-center">#</th>
-                <th className="py-3 px-3">Fecha y Hora</th>
-                <th className="py-3 px-3 text-center">Tipo</th>
-                <th className="py-3 px-3">Producto Afectado</th>
-                <th className="py-3 px-3 text-center">Cantidad</th>
-                <th className="py-3 px-3 text-right">Costo Mov. ($)</th>
-                <th className="py-3 px-3 text-right">PMP Resultante ($)</th>
-                <th className="py-3 px-3 text-center">Existencia</th>
-                <th className="py-3 px-3">Motivo / Justificación</th>
-                <th className="py-3 px-3 text-center">Ref. Factura</th>
-                <th className="py-3 px-3 text-center">Operador</th>
+                <th data-col="id" className="py-3 px-3 text-center relative">
+                  <span className="pr-2">#</span>
+                  <ColumnResizeHandle
+                    colKey="id"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="fecha" className="py-3 px-3 relative">
+                  <span className="pr-2">Fecha y Hora</span>
+                  <ColumnResizeHandle
+                    colKey="fecha"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="tipo" className="py-3 px-3 text-center relative">
+                  <span className="pr-2">Tipo</span>
+                  <ColumnResizeHandle
+                    colKey="tipo"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="producto" className="py-3 px-3 relative">
+                  <span className="pr-2">Producto Afectado</span>
+                  <ColumnResizeHandle
+                    colKey="producto"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="cantidad" className="py-3 px-3 text-center relative">
+                  <span className="pr-2">Cantidad</span>
+                  <ColumnResizeHandle
+                    colKey="cantidad"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="costo" className="py-3 px-3 text-right relative">
+                  <span className="pr-2">Costo Mov. ($)</span>
+                  <ColumnResizeHandle
+                    colKey="costo"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="pmp" className="py-3 px-3 text-right relative">
+                  <span className="pr-2">PMP Resultante ($)</span>
+                  <ColumnResizeHandle
+                    colKey="pmp"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="existencia" className="py-3 px-3 text-center relative">
+                  <span className="pr-2">Existencia</span>
+                  <ColumnResizeHandle
+                    colKey="existencia"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="motivo" className="py-3 px-3 relative">
+                  <span className="pr-2">Motivo / Justificación</span>
+                  <ColumnResizeHandle
+                    colKey="motivo"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="factura" className="py-3 px-3 text-center relative">
+                  <span className="pr-2">Ref. Factura</span>
+                  <ColumnResizeHandle
+                    colKey="factura"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
+                <th data-col="operador" className="py-3 px-3 text-center relative">
+                  <span className="pr-2">Operador</span>
+                  <ColumnResizeHandle
+                    colKey="operador"
+                    resizingCol={colResizer.resizingCol}
+                    onStartResize={colResizer.startResize}
+                  />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans">
@@ -242,15 +355,15 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredMovements.map((m) => (
+                pagination.paginatedItems.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-500 text-[11px]">
+                    <td data-col="id" className="py-2.5 px-3 text-center font-mono text-slate-500 text-[11px]">
                       {m.id}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap text-[11px]">
+                    <td data-col="fecha" className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap text-[11px] truncate">
                       {m.fecha}
                     </td>
-                    <td className="py-2.5 px-3 text-center">
+                    <td data-col="tipo" className="py-2.5 px-3 text-center">
                       {m.tipo === "ENTRADA" ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
                           <ArrowDownLeft className="w-3 h-3" /> ENTRADA
@@ -265,31 +378,33 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 font-semibold text-white max-w-xs truncate">
+                    <td data-col="producto" className="py-2.5 px-3 font-semibold text-white truncate">
                       {m.producto_nombre || "Producto #" + m.producto_id}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-200">
+                    <td data-col="cantidad" className="py-2.5 px-3 text-center font-mono font-bold text-slate-200">
                       {m.tipo === "SALIDA" ? `-${m.cantidad}` : `+${m.cantidad}`}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-300">
+                    <td data-col="costo" className="py-2.5 px-3 text-right font-mono text-slate-300">
                       {m.costo_unitario !== undefined && m.costo_unitario > 0 ? (
                         `$${m.costo_unitario.toFixed(2)}`
                       ) : (
                         <span className="text-slate-600">-</span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-amber-300 font-medium">
+                    <td data-col="pmp" className="py-2.5 px-3 text-right font-mono text-amber-300 font-medium">
                       {m.costo_promedio_ponderado !== undefined && m.costo_promedio_ponderado > 0 ? (
                         `$${m.costo_promedio_ponderado.toFixed(2)}`
                       ) : (
                         <span className="text-slate-600">-</span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-400">
+                    <td data-col="existencia" className="py-2.5 px-3 text-center font-mono font-bold text-emerald-400">
                       {m.stock_resultante !== undefined ? m.stock_resultante : "-"}
                     </td>
-                    <td className="py-2.5 px-3 text-slate-400 max-w-xs truncate">{m.motivo}</td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-400">
+                    <td data-col="motivo" className="py-2.5 px-3 text-slate-400 truncate">
+                      {m.motivo}
+                    </td>
+                    <td data-col="factura" className="py-2.5 px-3 text-center font-mono text-slate-400 truncate">
                       {m.referencia_factura ? (
                         <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[11px] text-blue-300">
                           {m.referencia_factura}
@@ -298,13 +413,26 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                         "-"
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-center text-slate-400">{m.usuario || "Admin"}</td>
+                    <td data-col="operador" className="py-2.5 px-3 text-center text-slate-400 truncate">
+                      {m.usuario || "Admin"}
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={pagination.currentPage}
+          pageSize={pagination.pageSize}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          startIndex={pagination.startIndex}
+          endIndex={pagination.endIndex}
+          onPageChange={pagination.setCurrentPage}
+          onPageSizeChange={pagination.setPageSize}
+          itemLabel="movimientos"
+        />
       </div>
 
       {/* Modal: New Manual Movement with Fiscal Validations */}

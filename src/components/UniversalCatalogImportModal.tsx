@@ -907,7 +907,7 @@ export const UniversalCatalogImportModal: React.FC<UniversalCatalogImportModalPr
                 </span>
               </div>
 
-              <div className="border border-slate-800 rounded-xl overflow-x-auto overflow-y-auto max-h-[380px] bg-[#11131a] overscroll-contain">
+              <div className="border border-slate-800 rounded-xl overflow-x-auto overflow-y-auto max-h-[380px] bg-[#11131a] overscroll-auto">
                 <table className="w-full text-left text-[11px] text-slate-300">
                   <thead className="bg-[#181b24] text-slate-400 font-mono uppercase text-[10px] border-b border-slate-800 sticky top-0 z-10 shadow-md">
                     <tr>

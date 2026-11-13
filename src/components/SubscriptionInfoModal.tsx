@@ -24,6 +24,7 @@ import {
   saveRemoteLicense,
   getRemoteLicense,
   parseFlexibleDate,
+  getCuotaMensualPorEdicion,
 } from "../mockDb";
 import {
   fetchRemoteLicenseFromFirestore,
@@ -62,8 +63,10 @@ export const SubscriptionInfoModal: React.FC<SubscriptionInfoModalProps> = ({
   const licenseStatus: LicenseCheckResult = checkClientLicenseStatus(clientLicense);
   const diasRestantes = licenseStatus.diasRestantes;
 
-  // Montos de suscripción según la edición
-  const montoUsd = currentEdition === "bodega" ? 15 : 30;
+  // Montos de suscripción según la edición contratada ($15 Bodega, $25 Fiscal, $35 Ambas)
+  const montoUsd =
+    clientLicense.cuota_mensual_usd ||
+    getCuotaMensualPorEdicion(clientLicense.edicion_contratada || currentEdition);
   const montoVes = montoUsd * bcvRate;
 
   // Datos de Pago Móvil requeridos

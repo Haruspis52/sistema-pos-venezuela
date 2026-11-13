@@ -431,7 +431,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
 
         {/* Footer info */}
         <div className="bg-[#0c0e14] px-6 py-3 border-t border-slate-800 text-center text-[11px] text-slate-500 font-mono shrink-0">
-          Sistema POS &amp; Facturación Venezuela • Sesión Protegida por PIN
+          FaradayPOS • Inventario &amp; Facturación Venezuela • Sesión Protegida por PIN
         </div>
       </div>
     </div>

@@ -63,13 +63,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return map;
   }, [products]);
 
-  // Filter sales by date range interval
+  // Filter sales by date range interval (excluding voided / Credit Note invoices)
   const filteredSales = useMemo(() => {
+    const activeSales = sales.filter((s) => s.estado !== "ANULADA");
     if (dateRange.preset === "all" && !dateRange.startDate && !dateRange.endDate) {
-      return sales;
+      return activeSales;
     }
 
-    return sales.filter((s) => {
+    return activeSales.filter((s) => {
       // Obtain sale date string (YYYY-MM-DD)
       const rawDateStr = s.fecha || (s.fecha_hora ? s.fecha_hora.split(" ")[0] : "");
       if (!rawDateStr) return true;
@@ -86,6 +87,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       return true;
     });
   }, [sales, dateRange]);
+
+  // Productos vencidos o próximos a vencer en <= 15 días (Punto 6)
+  const expiringProducts = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    const list: Array<{
+      product: Producto;
+      daysRemaining: number;
+      formattedDate: string;
+      status: "EXPIRED" | "SOON";
+    }> = [];
+
+    products.forEach((p) => {
+      if (!p.fecha_vencimiento || !p.fecha_vencimiento.trim()) return;
+      const clean = p.fecha_vencimiento.trim().slice(0, 10);
+      const parts = clean.split("-");
+      if (parts.length !== 3) return;
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const expDate = new Date(year, month, day, 23, 59, 59, 999);
+      if (isNaN(expDate.getTime())) return;
+
+      const diffMs = expDate.getTime() - todayStart.getTime();
+      const daysRemaining = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (daysRemaining <= 15) {
+        list.push({
+          product: p,
+          daysRemaining,
+          formattedDate: `${parts[2]}/${parts[1]}/${parts[0]}`,
+          status: daysRemaining < 0 ? "EXPIRED" : "SOON",
+        });
+      }
+    });
+
+    return list.sort((a, b) => a.daysRemaining - b.daysRemaining);
+  }, [products]);
 
   // Daily Sales Volume Data (VES / USD)
   const dailySalesData = useMemo(() => {
@@ -782,6 +821,91 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* Control de Lotes y Alertas de Vencimiento (Punto 6) */}
+      <div className="bg-[#1a1d24] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3.5 mb-4">
+          <div className="flex items-center gap-2">
+            <span
+              className={`p-1.5 rounded-lg border ${
+                expiringProducts.some((x) => x.status === "EXPIRED")
+                  ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                  : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+              }`}
+            >
+              <AlertCircle className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="font-bold text-white text-sm">
+                Control de Lotes y Fechas de Vencimiento (Alerta ≤ 15 días)
+              </h3>
+              <p className="text-xs text-slate-400">
+                Monitoreo preventivo de productos perecederos, medicinas y víveres próximos a caducar.
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-mono text-slate-400">
+            {expiringProducts.length === 0
+              ? "0 alertas activas"
+              : `${expiringProducts.length} ${expiringProducts.length === 1 ? "producto en alerta" : "productos en alerta"}`}
+          </span>
+        </div>
+
+        {expiringProducts.length === 0 ? (
+          <div className="text-center py-6 text-slate-400 text-xs flex flex-col items-center justify-center gap-1.5">
+            <ShieldCheck className="w-8 h-8 text-emerald-400 opacity-80" />
+            <p className="font-semibold text-slate-300">
+              Todos los lotes registrados se encuentran vigentes
+            </p>
+            <p className="text-[11px] text-slate-500">
+              No hay artículos vencidos ni próximos a vencer dentro de los próximos 15 días.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {expiringProducts.map(({ product, daysRemaining, formattedDate, status }) => (
+              <div
+                key={`exp-alert-${product.id}`}
+                className={`p-3 rounded-xl border flex flex-col justify-between gap-2 ${
+                  status === "EXPIRED"
+                    ? "bg-rose-950/25 border-rose-500/40"
+                    : "bg-amber-950/25 border-amber-500/40"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-white text-xs leading-snug">{product.nombre}</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      Cód: {product.codigo_barras || "S/C"} {product.lote ? `• Lote: ${product.lote}` : ""}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 ${
+                      status === "EXPIRED"
+                        ? "bg-rose-600 text-white"
+                        : "bg-amber-500 text-slate-950"
+                    }`}
+                  >
+                    {status === "EXPIRED"
+                      ? `VENCIDO (${Math.abs(daysRemaining)}d)`
+                      : daysRemaining === 0
+                      ? "VENCE HOY"
+                      : `En ${daysRemaining} días`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] font-mono pt-1.5 border-t border-slate-800/80">
+                  <span className="text-slate-400">
+                    Stock: <strong className="text-slate-200">{product.stock_actual} {product.unidad_medida}</strong>
+                  </span>
+                  <span className={status === "EXPIRED" ? "text-rose-300 font-bold" : "text-amber-300 font-bold"}>
+                    Vence: {formattedDate}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

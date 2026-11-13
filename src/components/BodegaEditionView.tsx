@@ -1,7 +1,15 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useDeferredValue } from "react";
 import { Producto, CartItem, FiadoCliente, CierreCajaRecord, WizarPosTransactionResult, Venta, PosOperationalMode, SystemUser } from "../types";
 import { WizarPosModal } from "./WizarPosModal";
 import { WizarPosConfigModal } from "./WizarPosConfigModal";
+import {
+  useResizableColumns,
+  ColumnResizeHandle,
+  ColumnConfiguratorToolbar,
+  ColumnDef,
+} from "./ColumnResizer";
+import { usePagination, TablePagination } from "./TablePagination";
+import { useHardwareBarcodeScanner } from "../hooks/useHardwareBarcodeScanner";
 import {
   Store,
   ShoppingCart,
@@ -71,7 +79,7 @@ interface BodegaEditionViewProps {
   onUserChange?: (user: SystemUser) => void;
 }
 
-export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
+export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
   products,
   bcvRate,
   onUpdateProductStock,
@@ -90,7 +98,74 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchProduct, setSearchProduct] = useState("");
+  const deferredSearchProduct = useDeferredValue(searchProduct);
   const [selectedCategory, setSelectedCategory] = useState<string>("TODAS");
+
+  // Configuración de tamaño de columnas y vistas en Mostrador, Fiados y Anaquel
+  const [mostradorViewMode, setMostradorViewMode] = useState<"grid" | "table">(() => {
+    try {
+      return (localStorage.getItem("bodega_mostrador_view") as "grid" | "table") || "grid";
+    } catch {
+      return "grid";
+    }
+  });
+  const [mostradorGridCols, setMostradorGridCols] = useState<2 | 3 | 4>(() => {
+    try {
+      const v = Number(localStorage.getItem("bodega_mostrador_cols"));
+      if (v === 2 || v === 3 || v === 4) return v;
+    } catch {}
+    return 3;
+  });
+
+  const [fiadosViewMode, setFiadosViewMode] = useState<"grid" | "table">(() => {
+    try {
+      return (localStorage.getItem("bodega_fiados_view") as "grid" | "table") || "grid";
+    } catch {
+      return "grid";
+    }
+  });
+  const [fiadosGridCols, setFiadosGridCols] = useState<1 | 2 | 3 | 4>(() => {
+    try {
+      const v = Number(localStorage.getItem("bodega_fiados_cols"));
+      if (v === 1 || v === 2 || v === 3 || v === 4) return v;
+    } catch {}
+    return 3;
+  });
+
+  const [anaquelGridCols, setAnaquelGridCols] = useState<2 | 3 | 4 | 6>(() => {
+    try {
+      const v = Number(localStorage.getItem("bodega_anaquel_cols"));
+      if (v === 2 || v === 3 || v === 4 || v === 6) return v;
+    } catch {}
+    return 6;
+  });
+
+  const mostradorTableCols = useMemo<ColumnDef[]>(
+    () => [
+      { key: "codigo", label: "Código", defaultWidth: 115, minWidth: 70, maxWidth: 240 },
+      { key: "nombre", label: "Producto / Descripción", defaultWidth: 230, minWidth: 130, maxWidth: 500 },
+      { key: "stock", label: "Existencia", defaultWidth: 90, minWidth: 65, maxWidth: 180 },
+      { key: "precio_usd", label: "Precio ($)", defaultWidth: 95, minWidth: 70, maxWidth: 180 },
+      { key: "precio_ves", label: "Precio (Bs.)", defaultWidth: 110, minWidth: 80, maxWidth: 220 },
+      { key: "accion", label: "Agregar", defaultWidth: 90, minWidth: 70, maxWidth: 160 },
+    ],
+    []
+  );
+  const mostradorColResizer = useResizableColumns("bodega_mostrador_list", mostradorTableCols);
+
+  const fiadosTableCols = useMemo<ColumnDef[]>(
+    () => [
+      { key: "nombre", label: "Vecino / Cliente", defaultWidth: 200, minWidth: 120, maxWidth: 420 },
+      { key: "direccion", label: "Dirección / Casa", defaultWidth: 180, minWidth: 100, maxWidth: 380 },
+      { key: "telefono", label: "Teléfono", defaultWidth: 125, minWidth: 85, maxWidth: 220 },
+      { key: "estado", label: "Estado", defaultWidth: 95, minWidth: 70, maxWidth: 180 },
+      { key: "deuda_usd", label: "Saldo Deuda ($)", defaultWidth: 130, minWidth: 90, maxWidth: 240 },
+      { key: "deuda_ves", label: "En Bolívares (Bs.)", defaultWidth: 140, minWidth: 95, maxWidth: 260 },
+      { key: "acciones", label: "Acciones", defaultWidth: 210, minWidth: 140, maxWidth: 340 },
+    ],
+    []
+  );
+  const fiadosColResizer = useResizableColumns("bodega_fiados_list", fiadosTableCols);
 
   // Payment Modal
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
@@ -122,6 +197,60 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
   const [inlineFiadoNombre, setInlineFiadoNombre] = useState("");
   const [inlineFiadoTelefono, setInlineFiadoTelefono] = useState("");
   const [inlineFiadoDireccion, setInlineFiadoDireccion] = useState("");
+
+  // Avance de Efectivo (Cobro por Punto de Venta + % Ganancia configurable)
+  const [isAvanceModalOpen, setIsAvanceModalOpen] = useState(false);
+  const [isAvanceSmartPosPending, setIsAvanceSmartPosPending] = useState(false);
+  const [avancePorcentaje, setAvancePorcentaje] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem("bodega_avance_porcentaje");
+      if (saved !== null) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && parsed >= 0) return parsed;
+      }
+    } catch {}
+    return 10;
+  });
+  const [avanceMonedaInput, setAvanceMonedaInput] = useState<"VES" | "USD">("VES");
+  const [avanceMontoInput, setAvanceMontoInput] = useState<number | "">("");
+  const [avanceMonedaEntregada, setAvanceMonedaEntregada] = useState<"VES" | "USD">("VES");
+  const [avanceRefPunto, setAvanceRefPunto] = useState("");
+  const [avanceClienteNombre, setAvanceClienteNombre] = useState("");
+  const [avanceUseSmartPos, setAvanceUseSmartPos] = useState<boolean>(posMode === "smartpos");
+
+  useEffect(() => {
+    setAvanceUseSmartPos(posMode === "smartpos");
+  }, [posMode]);
+
+  const handleUpdateAvancePorcentaje = (newPct: number) => {
+    const clean = Math.max(0, Math.min(100, isNaN(newPct) ? 0 : newPct));
+    setAvancePorcentaje(clean);
+    try {
+      localStorage.setItem("bodega_avance_porcentaje", String(clean));
+    } catch {}
+  };
+
+  const avanceCalc = useMemo(() => {
+    const rawMonto =
+      typeof avanceMontoInput === "number" && !isNaN(avanceMontoInput) && avanceMontoInput > 0
+        ? avanceMontoInput
+        : 0;
+    const efectivoVes = avanceMonedaInput === "VES" ? rawMonto : rawMonto * bcvRate;
+    const efectivoUsd = avanceMonedaInput === "USD" ? rawMonto : bcvRate > 0 ? rawMonto / bcvRate : 0;
+    const gananciaVes = efectivoVes * (avancePorcentaje / 100);
+    const gananciaUsd = efectivoUsd * (avancePorcentaje / 100);
+    const totalPuntoVes = efectivoVes + gananciaVes;
+    const totalPuntoUsd = efectivoUsd + gananciaUsd;
+
+    return {
+      efectivoVes: Math.round(efectivoVes * 100) / 100,
+      efectivoUsd: Math.round(efectivoUsd * 100) / 100,
+      gananciaVes: Math.round(gananciaVes * 100) / 100,
+      gananciaUsd: Math.round(gananciaUsd * 100) / 100,
+      totalPuntoVes: Math.round(totalPuntoVes * 100) / 100,
+      totalPuntoUsd: Math.round(totalPuntoUsd * 100) / 100,
+    };
+  }, [avanceMontoInput, avanceMonedaInput, avancePorcentaje, bcvRate]);
   const [completedSaleTicket, setCompletedSaleTicket] = useState<{
     id: string;
     fecha: string;
@@ -152,6 +281,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
     getStoredFiados()
   );
   const [searchFiado, setSearchFiado] = useState("");
+  const deferredSearchFiado = useDeferredValue(searchFiado);
   const [selectedFiadoDetail, setSelectedFiadoDetail] = useState<FiadoCliente | null>(
     null
   );
@@ -210,17 +340,17 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
     "nombre_asc" | "nombre_desc" | "stock_desc" | "stock_asc" | "precio_desc" | "precio_asc"
   >("nombre_asc");
 
-  // Filter & Sort products
+  // Filter & Sort products using deferredSearchProduct for smooth typing
   const filteredProducts = useMemo(() => {
+    const q = deferredSearchProduct.toLowerCase().trim();
     const list = products.filter((p) => {
       const matchCat =
         selectedCategory === "TODAS" ||
         p.categoria_nombre === selectedCategory;
-      const q = searchProduct.toLowerCase().trim();
       const matchQuery =
         !q ||
         p.nombre.toLowerCase().includes(q) ||
-        p.codigo_barras.includes(q);
+        p.codigo_barras.toLowerCase().includes(q);
       return matchCat && matchQuery;
     });
 
@@ -242,7 +372,22 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
           return 0;
       }
     });
-  }, [products, selectedCategory, searchProduct, bodegaSort]);
+  }, [products, selectedCategory, deferredSearchProduct, bodegaSort]);
+
+  const mostradorPagination = usePagination(filteredProducts, 50, "bodega_mostrador");
+
+  const filteredFiados = useMemo(() => {
+    const q = deferredSearchFiado.trim().toLowerCase();
+    if (!q) return fiadosList;
+    return fiadosList.filter(
+      (f) =>
+        f.nombre.toLowerCase().includes(q) ||
+        f.direccion.toLowerCase().includes(q) ||
+        (f.telefono && f.telefono.toLowerCase().includes(q))
+    );
+  }, [fiadosList, deferredSearchFiado]);
+
+  const fiadosPagination = usePagination(filteredFiados, 50, "bodega_fiados");
 
   // Cart Calculations
   const cartTotalUsd = useMemo(() => {
@@ -280,11 +425,6 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
       setCustomTotalUsd(cartTotalUsd);
     }
   }, [isPayModalOpen]);
-
-  // Buffer and timestamp refs for Global Hardware Barcode Scanner listener
-  const barcodeBufferRef = useRef<string>("");
-  const lastKeyTimeRef = useRef<number>(0);
-  const [lastScannedProduct, setLastScannedProduct] = useState<string | null>(null);
 
   // Add to cart
   const handleAddToCart = (product: Producto) => {
@@ -366,13 +506,41 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
     setCart([]);
   };
 
-  // Global Keyboard Shortcuts & Hardware Barcode Scanner Listener
+  const anyModalOpen =
+    isPayModalOpen ||
+    isAvanceModalOpen ||
+    isAbonoModalOpen ||
+    isNewFiadoModalOpen ||
+    Boolean(selectedFiadoDetail) ||
+    Boolean(selectedCierreDetail) ||
+    isCierreAuthModalOpen ||
+    isClearHistoryConfirmOpen ||
+    showWizarPosModal ||
+    showWizarPosConfigModal;
+
+  // Hook unificado con indexación O(1) en Map para el lector de códigos de barras físico
+  const { lastScannedProduct } = useHardwareBarcodeScanner({
+    products,
+    enabled: !anyModalOpen,
+    onScanMatch: (found) => {
+      handleAddToCart(found);
+      showToast(`📦 Escaneado: ${found.nombre} ($${found.precio_venta.toFixed(2)})`);
+    },
+    onScanNotFound: (scannedCode) => {
+      showToast(`⚠️ Producto no encontrado para código: "${scannedCode}"`);
+    },
+  });
+
+  // Atajos globales de teclado (Escape y Alt+X)
   useEffect(() => {
-    const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Escape key handling
+    const handleGlobalShortcuts = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (isPayModalOpen) {
           setIsPayModalOpen(false);
+          return;
+        }
+        if (isAvanceModalOpen) {
+          setIsAvanceModalOpen(false);
           return;
         }
         if (isAbonoModalOpen) {
@@ -401,6 +569,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
         }
         if (showWizarPosModal) {
           setShowWizarPosModal(false);
+          setIsAvanceSmartPosPending(false);
           return;
         }
         if (showWizarPosConfigModal) {
@@ -413,76 +582,20 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
         }
       }
 
-      // Alt+X: Clear shopping cart shortcut
       if (e.altKey && e.key.toLowerCase() === "x") {
         e.preventDefault();
         handleClearCart();
-        return;
-      }
-
-      // If user is currently focused on an input, textarea or contenteditable element, let standard typing work
-      const activeTag = (document.activeElement?.tagName || "").toLowerCase();
-      const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
-      if (activeTag === "input" || activeTag === "textarea" || isEditable) {
-        return;
-      }
-
-      // If a modal or dialog is open, do not intercept keystrokes
-      if (
-        isPayModalOpen ||
-        isAbonoModalOpen ||
-        isNewFiadoModalOpen ||
-        selectedFiadoDetail ||
-        selectedCierreDetail ||
-        isCierreAuthModalOpen ||
-        isClearHistoryConfirmOpen ||
-        showWizarPosModal ||
-        showWizarPosConfigModal
-      ) {
-        return;
-      }
-
-      const currentTime = Date.now();
-      // Hardware scanners typically type characters in intervals under 50-70ms
-      if (currentTime - lastKeyTimeRef.current > 100) {
-        barcodeBufferRef.current = "";
-      }
-      lastKeyTimeRef.current = currentTime;
-
-      if (e.key === "Enter") {
-        const scannedCode = barcodeBufferRef.current.trim();
-        if (scannedCode.length >= 2) {
-          // Look up product by exact barcode or ID or exact SKU
-          const found = products.find(
-            (p) =>
-              (p.codigo_barras && p.codigo_barras.toLowerCase() === scannedCode.toLowerCase()) ||
-              p.id.toString() === scannedCode ||
-              (p.codigo_interno && p.codigo_interno.toLowerCase() === scannedCode.toLowerCase())
-          );
-
-          if (found) {
-            handleAddToCart(found);
-            setLastScannedProduct(found.nombre);
-            showToast(`📦 Escaneado: ${found.nombre} ($${found.precio_venta.toFixed(2)})`);
-            setTimeout(() => setLastScannedProduct(null), 2500);
-          } else {
-            showToast(`⚠️ Producto no encontrado para código: "${scannedCode}"`);
-          }
-        }
-        barcodeBufferRef.current = "";
-      } else if (e.key.length === 1) {
-        barcodeBufferRef.current += e.key;
       }
     };
 
-    window.addEventListener("keydown", handleGlobalKeyDown);
+    window.addEventListener("keydown", handleGlobalShortcuts);
     return () => {
-      window.removeEventListener("keydown", handleGlobalKeyDown);
+      window.removeEventListener("keydown", handleGlobalShortcuts);
     };
   }, [
-    products,
     searchProduct,
     isPayModalOpen,
+    isAvanceModalOpen,
     isAbonoModalOpen,
     isNewFiadoModalOpen,
     selectedFiadoDetail,
@@ -493,8 +606,174 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
     showWizarPosConfigModal,
   ]);
 
+  // Complete Avance de Efectivo (called either directly on manual Punto or after SmartPOS approval)
+  const finalizeAvanceEfectivo = (posResult?: WizarPosTransactionResult) => {
+    if (avanceCalc.efectivoVes <= 0) {
+      showToast("⚠️ Ingresa el monto de efectivo a entregar al cliente.");
+      return;
+    }
+
+    const idAvance = `AVA-${Math.floor(1000 + Math.random() * 9000)}`;
+    const fechaStr = new Date().toLocaleString("es-VE");
+    const entregaLabel =
+      avanceMonedaEntregada === "VES"
+        ? `Bs. ${avanceCalc.efectivoVes.toFixed(2)}`
+        : `$${avanceCalc.efectivoUsd.toFixed(2)} USD`;
+
+    const mockAvanceItems: CartItem[] = [
+      {
+        producto: {
+          id: 999901,
+          codigo_barras: "AVANCE-EFECTIVO",
+          nombre: `Efectivo Entregado (${entregaLabel})`,
+          categoria_id: 0,
+          categoria_nombre: "Servicios de Caja",
+          precio_costo: avanceCalc.efectivoUsd,
+          costo_promedio: avanceCalc.efectivoUsd,
+          costo_promedio_ponderado: avanceCalc.efectivoUsd,
+          precio_venta: avanceCalc.efectivoUsd,
+          stock_actual: 999,
+          stock_minimo: 0,
+          alicuota_iva: 0,
+          unidad_medida: "Servicio",
+          fecha_registro: fechaStr,
+        },
+        cantidad: 1,
+        precio_unitario: avanceCalc.efectivoUsd,
+        subtotal: avanceCalc.efectivoUsd,
+        alicuota_iva: 0,
+        es_exento: true,
+      },
+      {
+        producto: {
+          id: 999902,
+          codigo_barras: "COMISION-AVANCE",
+          nombre: `Ganancia / Comisión Avance (${avancePorcentaje}%)`,
+          categoria_id: 0,
+          categoria_nombre: "Servicios de Caja",
+          precio_costo: 0,
+          costo_promedio: 0,
+          costo_promedio_ponderado: 0,
+          precio_venta: avanceCalc.gananciaUsd,
+          stock_actual: 999,
+          stock_minimo: 0,
+          alicuota_iva: 0,
+          unidad_medida: "Comisión",
+          fecha_registro: fechaStr,
+        },
+        cantidad: 1,
+        precio_unitario: avanceCalc.gananciaUsd,
+        subtotal: avanceCalc.gananciaUsd,
+        alicuota_iva: 0,
+        es_exento: true,
+      },
+    ];
+
+    const metodoStr = posResult
+      ? `Punto de Venta SmartPOS - Avance (${posResult.tipo_tarjeta || "Tarjeta"})`
+      : "Punto de Venta (Avance de Efectivo)";
+
+    const ticket = {
+      id: idAvance,
+      fecha: fechaStr,
+      items: mockAvanceItems,
+      totalUsd: avanceCalc.totalPuntoUsd,
+      totalVes: avanceCalc.totalPuntoVes,
+      metodo: metodoStr,
+      clienteNombre: avanceClienteNombre.trim() || "Cliente de Mostrador (Avance)",
+      ref: posResult?.referencia || avanceRefPunto.trim() || undefined,
+      posMetadata: posResult
+        ? {
+            banco: posResult.banco_emisor,
+            tarjetaTipo: posResult.tipo_tarjeta,
+            ultimos4: posResult.tarjeta_ultimos4,
+            aprobacion: posResult.codigo_aprobacion,
+            lote: posResult.lote,
+            terminal: posResult.terminal,
+          }
+        : undefined,
+    };
+
+    if (onRecordSale) {
+      const nowStr = new Date().toISOString().slice(0, 19).replace("T", " ");
+      const ventaRecord: Venta = {
+        id: Date.now(),
+        numero_factura: ticket.id,
+        numero_control: `CTRL-${ticket.id}`,
+        fecha_hora: nowStr,
+        fecha: nowStr.split(" ")[0],
+        cliente_rif: "V-00000000-0",
+        cliente_nombre: ticket.clienteNombre,
+        tasa_bcv: bcvRate,
+        metodo_pago: metodoStr,
+        moneda_pago: "VES",
+        base_imponible_usd: 0,
+        base_imponible_ves: 0,
+        base_exenta_usd: avanceCalc.totalPuntoUsd,
+        base_exenta_ves: avanceCalc.totalPuntoVes,
+        iva_usd: 0,
+        iva_ves: 0,
+        aplica_igtf: false,
+        igtf_usd: 0,
+        igtf_ves: 0,
+        total_usd: avanceCalc.totalPuntoUsd,
+        total_ves: avanceCalc.totalPuntoVes,
+        total: avanceCalc.totalPuntoUsd,
+        monto_pagado: avanceCalc.totalPuntoVes,
+        cambio: 0,
+        estado: "ACTIVA",
+        pos_referencia: ticket.ref,
+        pos_lote: posResult?.lote,
+        pos_aprobacion: posResult?.codigo_aprobacion,
+        pos_terminal: posResult?.terminal,
+        usuario: currentUser
+          ? `${currentUser.nombre_completo} (${currentUser.rol === "ADMIN" ? "Administrador" : "Cajero"})`
+          : "Mostrador Bodega",
+        items: mockAvanceItems.map((c) => ({
+          producto_id: c.producto.id,
+          nombre: c.producto.nombre,
+          cantidad: c.cantidad,
+          precio_unitario: c.precio_unitario,
+          subtotal: c.subtotal,
+          alicuota_iva: 0,
+          es_exento: true,
+        })),
+      };
+      onRecordSale(ventaRecord);
+    }
+
+    setCompletedSaleTicket(ticket);
+    setIsAvanceModalOpen(false);
+    setIsAvanceSmartPosPending(false);
+    setShowWizarPosModal(false);
+    setAvanceMontoInput("");
+    setAvanceRefPunto("");
+    setAvanceClienteNombre("");
+    showToast(
+      `💸 Avance procesado: Entregar ${entregaLabel} • Cobrado en Punto Bs. ${avanceCalc.totalPuntoVes.toFixed(2)} (+${avancePorcentaje}% ganancia)`
+    );
+  };
+
+  const handleConfirmAvanceClick = () => {
+    if (avanceCalc.efectivoVes <= 0) {
+      showToast("⚠️ Ingresa el monto de efectivo que vas a entregar.");
+      return;
+    }
+    if (posMode === "smartpos" && avanceUseSmartPos) {
+      setIsAvanceSmartPosPending(true);
+      setShowWizarPosModal(true);
+      return;
+    }
+    finalizeAvanceEfectivo();
+  };
+
   // Handle POS / SmartPOS Approved Sale
   const handleSmartPosSuccess = (posResult: WizarPosTransactionResult) => {
+    if (isAvanceSmartPosPending) {
+      finalizeAvanceEfectivo(posResult);
+      return;
+    }
+
     // Deduct stock
     if (onUpdateProductStock) {
       cart.forEach((item) => {
@@ -553,7 +832,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
         total: ticket.totalUsd,
         monto_pagado: ticket.totalVes,
         cambio: 0,
-        usuario: "SmartPOS Bodega",
+        usuario: currentUser ? `${currentUser.nombre_completo} (${currentUser.rol === "ADMIN" ? "Administrador" : "Cajero"})` : "SmartPOS Bodega",
         items: cart.map((c) => ({
           producto_id: c.producto.id,
           nombre: c.producto.nombre,
@@ -677,6 +956,19 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
       vueltoUsd = vueltoVes / bcvRate;
     }
 
+    const isMixedBodegaPayment =
+      selectedPaymentMethod === "EFECTIVO_USD" &&
+      typeof cashGivenUsd === "number" &&
+      cashGivenUsd > 0 &&
+      cashGivenUsd < effectiveTotalUsd;
+
+    const mixedRemainderUsd = isMixedBodegaPayment
+      ? parseFloat((effectiveTotalUsd - (cashGivenUsd as number)).toFixed(2))
+      : 0;
+    const mixedRemainderVes = isMixedBodegaPayment
+      ? parseFloat((mixedRemainderUsd * bcvRate).toFixed(2))
+      : 0;
+
     const ticket = {
       id: `TKT-${Math.floor(1000 + Math.random() * 9000)}`,
       fecha: new Date().toLocaleString("es-VE"),
@@ -685,18 +977,19 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
       totalVes: effectiveTotalVes,
       subtotalProductosUsd: cartTotalUsd,
       montoAjustado: isTotalCustomized,
-      metodo:
-        selectedPaymentMethod === "EFECTIVO_USD"
-          ? "Efectivo Divisas ($)"
-          : selectedPaymentMethod === "EFECTIVO_VES"
-          ? "Efectivo Bolívares (Bs.)"
-          : selectedPaymentMethod === "PAGO_MOVIL"
-          ? "Pago Móvil"
-          : selectedPaymentMethod === "PUNTO_VENTA"
-          ? "Punto de Venta Manual"
-          : selectedPaymentMethod === "ZELLE"
-          ? "Zelle"
-          : `Fiado (${clienteFiadoNombre})`,
+      metodo: isMixedBodegaPayment
+        ? `Pago Mixto ($${(cashGivenUsd as number).toFixed(2)} + Bs. ${mixedRemainderVes.toFixed(2)})`
+        : selectedPaymentMethod === "EFECTIVO_USD"
+        ? "Efectivo Divisas ($)"
+        : selectedPaymentMethod === "EFECTIVO_VES"
+        ? "Efectivo Bolívares (Bs.)"
+        : selectedPaymentMethod === "PAGO_MOVIL"
+        ? "Pago Móvil"
+        : selectedPaymentMethod === "PUNTO_VENTA"
+        ? "Punto de Venta Manual"
+        : selectedPaymentMethod === "ZELLE"
+        ? "Zelle"
+        : `Fiado (${clienteFiadoNombre})`,
       pagoUsd: typeof cashGivenUsd === "number" ? cashGivenUsd : undefined,
       vueltoUsd: vueltoUsd > 0 ? vueltoUsd : undefined,
       vueltoVes: vueltoVes > 0 ? vueltoVes : undefined,
@@ -720,8 +1013,8 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
         cliente_rif: "V-00000000-0",
         cliente_nombre: ticket.clienteNombre,
         tasa_bcv: bcvRate,
-        metodo_pago: ticket.metodo,
-        moneda_pago: "VES",
+        metodo_pago: isMixedBodegaPayment ? "Pago Mixto ($ + Bs)" : ticket.metodo,
+        moneda_pago: isMixedBodegaPayment ? "VES" : selectedPaymentMethod === "EFECTIVO_USD" || selectedPaymentMethod === "ZELLE" ? "USD" : "VES",
         base_imponible_usd: 0,
         base_imponible_ves: 0,
         base_exenta_usd: ticket.totalUsd,
@@ -736,7 +1029,26 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
         total: ticket.totalUsd,
         monto_pagado: ticket.totalVes,
         cambio: 0,
-        usuario: "Mostrador Bodega",
+        estado: "ACTIVA",
+        pagos_mixtos: isMixedBodegaPayment
+          ? [
+              {
+                metodo: "Divisas en Efectivo ($)",
+                moneda: "USD",
+                monto_usd: cashGivenUsd as number,
+                monto_ves: parseFloat(((cashGivenUsd as number) * bcvRate).toFixed(2)),
+                aplica_igtf: false,
+              },
+              {
+                metodo: "Restante en Bolívares (Bs.)",
+                moneda: "VES",
+                monto_usd: mixedRemainderUsd,
+                monto_ves: mixedRemainderVes,
+                aplica_igtf: false,
+              },
+            ]
+          : undefined,
+        usuario: currentUser ? `${currentUser.nombre_completo} (${currentUser.rol === "ADMIN" ? "Administrador" : "Cajero"})` : "Mostrador Bodega",
         items: cart.map((c) => ({
           producto_id: c.producto.id,
           nombre: c.producto.nombre,
@@ -1104,6 +1416,20 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
                 />
               </div>
 
+              {/* Botón Rápido: Dar Avance de Efectivo */}
+              <button
+                type="button"
+                onClick={() => setIsAvanceModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold shadow-md shadow-emerald-950/50 border border-emerald-400/40 shrink-0 transition-all cursor-pointer"
+                title="Dar Avance de Efectivo cobrando por Punto de Venta con porcentaje de ganancia configurable"
+              >
+                <Banknote className="w-4 h-4 text-emerald-100" />
+                <span>Dar Avance</span>
+                <span className="px-1.5 py-0.5 rounded bg-black/30 text-emerald-200 font-mono text-[10px]">
+                  +{avancePorcentaje}%
+                </span>
+              </button>
+
               {/* Barcode Global Scanner Ready Badge */}
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-medium shrink-0" title="Escaneo global activado: Pase cualquier producto por el lector sin necesidad de hacer clic en el buscador">
                 <Barcode className="w-3.5 h-3.5 animate-pulse" />
@@ -1150,71 +1476,270 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
                 ))}
               </div>
 
-              {/* Sort Pill */}
-              <div className="shrink-0 flex items-center gap-1.5 bg-[#14161f] border border-slate-800 rounded-xl px-2.5 py-1 text-slate-300">
-                <ArrowUpDown className="w-3 h-3 text-amber-400 shrink-0" />
-                <select
-                  value={bodegaSort}
-                  onChange={(e) => setBodegaSort(e.target.value as any)}
-                  className="bg-transparent text-[11px] font-semibold text-slate-200 focus:outline-none cursor-pointer"
-                  title="Ordenar productos en mostrador"
-                >
-                  <option value="nombre_asc" className="bg-[#14161f]">🔤 A ➔ Z</option>
-                  <option value="nombre_desc" className="bg-[#14161f]">🔤 Z ➔ A</option>
-                  <option value="stock_desc" className="bg-[#14161f]">📦 + Stock</option>
-                  <option value="stock_asc" className="bg-[#14161f]">⚠️ - Stock</option>
-                  <option value="precio_desc" className="bg-[#14161f]">💰 + Precio</option>
-                  <option value="precio_asc" className="bg-[#14161f]">💵 - Precio</option>
-                </select>
+              {/* Sort Pill & View/Column Config */}
+              <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
+                <div className="flex items-center gap-1 bg-[#14161f] border border-slate-800 rounded-xl p-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostradorViewMode("grid");
+                      try { localStorage.setItem("bodega_mostrador_view", "grid"); } catch {}
+                    }}
+                    className={`px-2 py-0.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                      mostradorViewMode === "grid"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                    title="Vista de tarjetas en cuadrícula"
+                  >
+                    Tarjetas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMostradorViewMode("table");
+                      try { localStorage.setItem("bodega_mostrador_view", "table"); } catch {}
+                    }}
+                    className={`px-2 py-0.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                      mostradorViewMode === "table"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                    title="Vista de lista con tamaño de columnas configurable"
+                  >
+                    Lista Ajustable
+                  </button>
+                </div>
+
+                {mostradorViewMode === "grid" && (
+                  <div className="flex items-center gap-1 bg-[#14161f] border border-slate-800 rounded-xl px-2 py-1 text-[10px]">
+                    <span className="text-slate-400 font-medium">Cols:</span>
+                    {([2, 3, 4] as const).map((cols) => (
+                      <button
+                        key={cols}
+                        type="button"
+                        onClick={() => {
+                          setMostradorGridCols(cols);
+                          try { localStorage.setItem("bodega_mostrador_cols", String(cols)); } catch {}
+                        }}
+                        className={`w-5 h-5 rounded font-mono font-bold cursor-pointer transition-colors ${
+                          mostradorGridCols === cols
+                            ? "bg-blue-600 text-white"
+                            : "text-slate-400 hover:text-white bg-slate-900"
+                        }`}
+                        title={`Mostrar ${cols} columnas de productos`}
+                      >
+                        {cols}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5 bg-[#14161f] border border-slate-800 rounded-xl px-2.5 py-1 text-slate-300">
+                  <ArrowUpDown className="w-3 h-3 text-amber-400 shrink-0" />
+                  <select
+                    value={bodegaSort}
+                    onChange={(e) => setBodegaSort(e.target.value as any)}
+                    className="bg-transparent text-[11px] font-semibold text-slate-200 focus:outline-none cursor-pointer"
+                    title="Ordenar productos en mostrador"
+                  >
+                    <option value="nombre_asc" className="bg-[#14161f]">🔤 A ➔ Z</option>
+                    <option value="nombre_desc" className="bg-[#14161f]">🔤 Z ➔ A</option>
+                    <option value="stock_desc" className="bg-[#14161f]">📦 + Stock</option>
+                    <option value="stock_asc" className="bg-[#14161f]">⚠️ - Stock</option>
+                    <option value="precio_desc" className="bg-[#14161f]">💰 + Precio</option>
+                    <option value="precio_asc" className="bg-[#14161f]">💵 - Precio</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* Products Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[580px] overflow-y-auto pr-1 overscroll-contain touch-pan-y">
-              {filteredProducts.map((p, idx) => {
-                const priceVes = p.precio_venta * bcvRate;
-                const inCart = cart.find((c) => c.producto.id === p.id);
-                return (
-                  <button
-                    key={`bodega-p-${p.id}-${p.codigo_barras || ""}-${idx}`}
-                    onClick={() => handleAddToCart(p)}
-                    className={`bg-[#14161f] hover:bg-[#1c202d] border rounded-2xl p-3 text-left transition-all relative flex flex-col justify-between group ${
-                      inCart
-                        ? "border-amber-500 shadow-md shadow-amber-950/30 bg-amber-500/5"
-                        : "border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    {inCart && (
-                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-mono font-bold shadow">
-                        x{inCart.cantidad}
-                      </span>
-                    )}
-                    <div>
-                      <div className="text-[10px] text-slate-400 line-clamp-1 font-mono">
-                        {p.codigo_barras}
-                      </div>
-                      <div className="text-xs font-bold text-white line-clamp-2 mt-0.5 group-hover:text-amber-300">
-                        {p.nombre}
-                      </div>
-                    </div>
+            {/* Products Grid or Resizable Table */}
+            {mostradorViewMode === "grid" ? (
+              <div className="space-y-2">
+                <div
+                  className={`grid gap-2.5 max-h-[580px] overflow-y-auto pr-1 overscroll-auto ${
+                    mostradorGridCols === 2
+                      ? "grid-cols-1 sm:grid-cols-2"
+                      : mostradorGridCols === 4
+                      ? "grid-cols-2 sm:grid-cols-4"
+                      : "grid-cols-2 sm:grid-cols-3"
+                  }`}
+                >
+                  {mostradorPagination.paginatedItems.map((p, idx) => {
+                    const priceVes = p.precio_venta * bcvRate;
+                    const inCart = cart.find((c) => c.producto.id === p.id);
+                    return (
+                      <button
+                        key={`bodega-p-${p.id}-${p.codigo_barras || ""}-${idx}`}
+                        onClick={() => handleAddToCart(p)}
+                        className={`bg-[#14161f] hover:bg-[#1c202d] border rounded-2xl p-3 text-left transition-all relative flex flex-col justify-between group ${
+                          inCart
+                            ? "border-amber-500 shadow-md shadow-amber-950/30 bg-amber-500/5"
+                            : "border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        {inCart && (
+                          <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-mono font-bold shadow">
+                            x{inCart.cantidad}
+                          </span>
+                        )}
+                        <div>
+                          <div className="text-[10px] text-slate-400 line-clamp-1 font-mono">
+                            {p.codigo_barras}
+                          </div>
+                          <div className="text-xs font-bold text-white line-clamp-2 mt-0.5 group-hover:text-amber-300">
+                            {p.nombre}
+                          </div>
+                        </div>
 
-                    <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-end justify-between">
-                      <div>
-                        <div className="text-sm font-extrabold text-amber-400 font-mono">
-                          ${p.precio_venta.toFixed(2)}
+                        <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-end justify-between">
+                          <div>
+                            <div className="text-sm font-extrabold text-amber-400 font-mono">
+                              ${p.precio_venta.toFixed(2)}
+                            </div>
+                            <div className="text-[10px] text-slate-300 font-mono">
+                              Bs. {priceVes.toFixed(2)}
+                            </div>
+                          </div>
+                          <span className="text-[9px] text-slate-400 font-mono">
+                            Stock: {p.stock_actual}
+                          </span>
                         </div>
-                        <div className="text-[10px] text-slate-300 font-mono">
-                          Bs. {priceVes.toFixed(2)}
-                        </div>
-                      </div>
-                      <span className="text-[9px] text-slate-400 font-mono">
-                        Stock: {p.stock_actual}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="rounded-xl overflow-hidden border border-slate-800">
+                  <TablePagination
+                    currentPage={mostradorPagination.currentPage}
+                    pageSize={mostradorPagination.pageSize}
+                    totalPages={mostradorPagination.totalPages}
+                    totalItems={mostradorPagination.totalItems}
+                    startIndex={mostradorPagination.startIndex}
+                    endIndex={mostradorPagination.endIndex}
+                    onPageChange={mostradorPagination.setCurrentPage}
+                    onPageSizeChange={mostradorPagination.setPageSize}
+                    itemLabel="productos"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="bg-[#14161f] border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+                <ColumnConfiguratorToolbar
+                  controller={mostradorColResizer}
+                  title="Configurar Tamaño de Columnas • Lista de Mostrador"
+                />
+                <div className="overflow-x-auto max-h-[540px] overflow-y-auto">
+                  <table
+                    data-resizable-table={mostradorColResizer.tableId}
+                    className="w-full text-left text-xs text-slate-300"
+                  >
+                    <thead className="bg-[#11131a] text-slate-400 uppercase font-mono text-[10px] sticky top-0 z-10 border-b border-slate-800">
+                      <tr>
+                        <th data-col="codigo" className="py-2.5 px-3 relative">
+                          <span className="pr-2">Código</span>
+                          <ColumnResizeHandle
+                            colKey="codigo"
+                            resizingCol={mostradorColResizer.resizingCol}
+                            onStartResize={mostradorColResizer.startResize}
+                          />
+                        </th>
+                        <th data-col="nombre" className="py-2.5 px-3 relative">
+                          <span className="pr-2">Producto / Descripción</span>
+                          <ColumnResizeHandle
+                            colKey="nombre"
+                            resizingCol={mostradorColResizer.resizingCol}
+                            onStartResize={mostradorColResizer.startResize}
+                          />
+                        </th>
+                        <th data-col="stock" className="py-2.5 px-3 text-center relative">
+                          <span className="pr-2">Stock</span>
+                          <ColumnResizeHandle
+                            colKey="stock"
+                            resizingCol={mostradorColResizer.resizingCol}
+                            onStartResize={mostradorColResizer.startResize}
+                          />
+                        </th>
+                        <th data-col="precio_usd" className="py-2.5 px-3 text-right relative">
+                          <span className="pr-2">Precio ($)</span>
+                          <ColumnResizeHandle
+                            colKey="precio_usd"
+                            resizingCol={mostradorColResizer.resizingCol}
+                            onStartResize={mostradorColResizer.startResize}
+                          />
+                        </th>
+                        <th data-col="precio_ves" className="py-2.5 px-3 text-right relative">
+                          <span className="pr-2">Precio (Bs.)</span>
+                          <ColumnResizeHandle
+                            colKey="precio_ves"
+                            resizingCol={mostradorColResizer.resizingCol}
+                            onStartResize={mostradorColResizer.startResize}
+                          />
+                        </th>
+                        <th data-col="accion" className="py-2.5 px-3 text-center relative">
+                          <span className="pr-2">Acción</span>
+                          <ColumnResizeHandle
+                            colKey="accion"
+                            resizingCol={mostradorColResizer.resizingCol}
+                            onStartResize={mostradorColResizer.startResize}
+                          />
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {mostradorPagination.paginatedItems.map((p, idx) => {
+                        const priceVes = p.precio_venta * bcvRate;
+                        const inCart = cart.find((c) => c.producto.id === p.id);
+                        return (
+                          <tr
+                            key={`bodega-row-${p.id}-${idx}`}
+                            onClick={() => handleAddToCart(p)}
+                            className={`cursor-pointer transition-colors ${
+                              inCart ? "bg-amber-500/10 hover:bg-amber-500/15" : "hover:bg-slate-800/50"
+                            }`}
+                          >
+                            <td data-col="codigo" className="py-2 px-3 font-mono text-[11px] text-slate-400 truncate">
+                              {p.codigo_barras}
+                            </td>
+                            <td data-col="nombre" className="py-2 px-3 font-bold text-white truncate">
+                              {p.nombre}
+                            </td>
+                            <td data-col="stock" className="py-2 px-3 text-center font-mono">
+                              <span className={p.stock_actual <= 0 ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>
+                                {p.stock_actual}
+                              </span>
+                            </td>
+                            <td data-col="precio_usd" className="py-2 px-3 text-right font-mono font-extrabold text-amber-400">
+                              ${p.precio_venta.toFixed(2)}
+                            </td>
+                            <td data-col="precio_ves" className="py-2 px-3 text-right font-mono text-slate-300">
+                              Bs. {priceVes.toFixed(2)}
+                            </td>
+                            <td data-col="accion" className="py-2 px-3 text-center">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-[10px] font-bold">
+                                {inCart ? `En canasta (x${inCart.cantidad})` : "+ Vender"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <TablePagination
+                  currentPage={mostradorPagination.currentPage}
+                  pageSize={mostradorPagination.pageSize}
+                  totalPages={mostradorPagination.totalPages}
+                  totalItems={mostradorPagination.totalItems}
+                  startIndex={mostradorPagination.startIndex}
+                  endIndex={mostradorPagination.endIndex}
+                  onPageChange={mostradorPagination.setCurrentPage}
+                  onPageSizeChange={mostradorPagination.setPageSize}
+                  itemLabel="productos"
+                />
+              </div>
+            )}
           </div>
 
           {/* Right: Mostrador Cart & Checkout Panel (5 cols) */}
@@ -1324,20 +1849,38 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
                 </div>
               </div>
 
-              {/* Big Facturar Venta Button */}
-              <button
-                type="button"
-                id="btn-open-pay-modal"
-                onClick={() => {
-                  setCustomTotalUsd(cartTotalUsd);
-                  setIsPayModalOpen(true);
-                }}
-                disabled={cart.length === 0}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:opacity-40 disabled:hover:from-amber-500 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 transition-all active:scale-[0.99] cursor-pointer"
-              >
-                <DollarSign className="w-5 h-5" />
-                <span>Facturar Venta</span>
-              </button>
+              {/* Action Buttons: Dar Avance de Efectivo & Facturar Venta */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  id="btn-open-avance-modal"
+                  onClick={() => setIsAvanceModalOpen(true)}
+                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 text-emerald-200 font-bold text-xs flex items-center justify-between transition-all cursor-pointer shadow-sm"
+                >
+                  <span className="flex items-center gap-2">
+                    <Banknote className="w-4 h-4 text-emerald-400" />
+                    <span>💸 Dar Avance de Efectivo (Cobro por Punto)</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-extrabold">
+                    +{avancePorcentaje}% Ganancia
+                  </span>
+                </button>
+
+                {/* Big Facturar Venta Button */}
+                <button
+                  type="button"
+                  id="btn-open-pay-modal"
+                  onClick={() => {
+                    setCustomTotalUsd(cartTotalUsd);
+                    setIsPayModalOpen(true);
+                  }}
+                  disabled={cart.length === 0}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:opacity-40 disabled:hover:from-amber-500 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 transition-all active:scale-[0.99] cursor-pointer"
+                >
+                  <DollarSign className="w-5 h-5" />
+                  <span>Facturar Venta</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1389,9 +1932,9 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
             </div>
           </div>
 
-          {/* Search neighbors */}
-          <div className="bg-[#14161f] border border-slate-800 p-3 rounded-2xl flex items-center justify-between gap-3">
-            <div className="relative flex-1">
+          {/* Search neighbors & Column/View Configurator */}
+          <div className="bg-[#14161f] border border-slate-800 p-3 rounded-2xl flex flex-wrap items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-[220px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -1401,103 +1944,340 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
                 className="w-full bg-[#0e1017] border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-amber-500"
               />
             </div>
-          </div>
 
-          {/* Neighbors List */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {fiadosList
-              .filter((f) =>
-                !searchFiado ||
-                f.nombre.toLowerCase().includes(searchFiado.toLowerCase()) ||
-                f.direccion.toLowerCase().includes(searchFiado.toLowerCase())
-              )
-              .map((f) => (
-                <div
-                  key={f.id}
-                  className="bg-[#14161f] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors"
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-[#0e1017] border border-slate-800 rounded-xl p-1 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiadosViewMode("grid");
+                    try { localStorage.setItem("bodega_fiados_view", "grid"); } catch {}
+                  }}
+                  className={`px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-colors ${
+                    fiadosViewMode === "grid"
+                      ? "bg-amber-500 text-slate-950"
+                      : "text-slate-400 hover:text-white"
+                  }`}
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-white truncate">{f.nombre}</h3>
-                        <p className="text-xs text-slate-400 truncate">{f.direccion}</p>
-                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">
-                          📞 {f.telefono}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            f.saldo_deuda_usd > 0
-                              ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                              : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                          }`}
-                        >
-                          {f.saldo_deuda_usd > 0 ? "Debe" : "Al Día"}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteFiado(f.id, f.nombre)}
-                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                          title={`Eliminar a "${f.nombre}" de la libreta`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
+                  Tarjetas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiadosViewMode("table");
+                    try { localStorage.setItem("bodega_fiados_view", "table"); } catch {}
+                  }}
+                  className={`px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-colors ${
+                    fiadosViewMode === "table"
+                      ? "bg-amber-500 text-slate-950"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Tabla Ajustable
+                </button>
+              </div>
 
-                    <div className="mt-4 p-3 bg-[#0e1017] rounded-xl border border-slate-800/80">
-                      <div className="flex justify-between items-baseline">
-                        <span className="text-[11px] text-slate-400">Saldo Deudor:</span>
-                        <span className="text-base font-bold font-mono text-amber-400">
-                          ${f.saldo_deuda_usd.toFixed(2)} USD
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-baseline mt-0.5">
-                        <span className="text-[10px] text-slate-500">En Bolívares:</span>
-                        <span className="text-xs text-slate-300 font-mono">
-                          Bs. {(f.saldo_deuda_usd * bcvRate).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-800 flex items-center gap-2">
+              {fiadosViewMode === "grid" && (
+                <div className="flex items-center gap-1 bg-[#0e1017] border border-slate-800 rounded-xl px-2.5 py-1 text-[11px]">
+                  <span className="text-slate-400">Columnas:</span>
+                  {([1, 2, 3, 4] as const).map((cols) => (
                     <button
+                      key={cols}
                       type="button"
                       onClick={() => {
-                        setSelectedFiadoDetail(f);
-                        setIsAbonoJustCompleted(false);
-                        setIsAbonoModalOpen(true);
+                        setFiadosGridCols(cols);
+                        try { localStorage.setItem("bodega_fiados_cols", String(cols)); } catch {}
                       }}
-                      disabled={f.saldo_deuda_usd <= 0}
-                      className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-xs font-bold transition-colors shadow cursor-pointer"
+                      className={`w-5 h-5 rounded font-mono font-bold cursor-pointer transition-colors ${
+                        fiadosGridCols === cols
+                          ? "bg-blue-600 text-white"
+                          : "text-slate-400 hover:text-white bg-slate-900"
+                      }`}
                     >
-                      💵 Registrar Abono
+                      {cols}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSendWhatsAppDebtReminder(f)}
-                      disabled={f.saldo_deuda_usd <= 0}
-                      className="p-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-800/80 disabled:opacity-30 text-emerald-400 hover:text-emerald-200 border border-emerald-600/50 transition-colors shadow cursor-pointer flex items-center justify-center shrink-0"
-                      title={`Cobranza Rápida por WhatsApp a ${f.nombre} ($${f.saldo_deuda_usd.toFixed(2)})`}
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedFiadoDetail(f);
-                        setIsAbonoJustCompleted(false);
-                      }}
-                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-                    >
-                      Historial
-                    </button>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
+            </div>
           </div>
+
+          {/* Neighbors List (Grid or Resizable Table) */}
+          {fiadosViewMode === "grid" ? (
+            <div className="space-y-3">
+              <div
+                className={`grid gap-3 ${
+                  fiadosGridCols === 1
+                    ? "grid-cols-1"
+                    : fiadosGridCols === 2
+                    ? "grid-cols-1 md:grid-cols-2"
+                    : fiadosGridCols === 4
+                    ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+                    : "grid-cols-1 md:grid-cols-3"
+                }`}
+              >
+                {fiadosPagination.paginatedItems.map((f) => (
+                  <div
+                    key={f.id}
+                    className="bg-[#14161f] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-bold text-white truncate">{f.nombre}</h3>
+                          <p className="text-xs text-slate-400 truncate">{f.direccion}</p>
+                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            📞 {f.telefono}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              f.saldo_deuda_usd > 0
+                                ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            }`}
+                          >
+                            {f.saldo_deuda_usd > 0 ? "Debe" : "Al Día"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFiado(f.id, f.nombre)}
+                            className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            title={`Eliminar a "${f.nombre}" de la libreta`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 p-3 bg-[#0e1017] rounded-xl border border-slate-800/80">
+                        <div className="flex justify-between items-baseline">
+                          <span className="text-[11px] text-slate-400">Saldo Deudor:</span>
+                          <span className="text-base font-bold font-mono text-amber-400">
+                            ${f.saldo_deuda_usd.toFixed(2)} USD
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-baseline mt-0.5">
+                          <span className="text-[10px] text-slate-500">En Bolívares:</span>
+                          <span className="text-xs text-slate-300 font-mono">
+                            Bs. {(f.saldo_deuda_usd * bcvRate).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-800 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFiadoDetail(f);
+                          setIsAbonoJustCompleted(false);
+                          setIsAbonoModalOpen(true);
+                        }}
+                        disabled={f.saldo_deuda_usd <= 0}
+                        className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-xs font-bold transition-colors shadow cursor-pointer"
+                      >
+                        💵 Registrar Abono
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendWhatsAppDebtReminder(f)}
+                        disabled={f.saldo_deuda_usd <= 0}
+                        className="p-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-800/80 disabled:opacity-30 text-emerald-400 hover:text-emerald-200 border border-emerald-600/50 transition-colors shadow cursor-pointer flex items-center justify-center shrink-0"
+                        title={`Cobranza Rápida por WhatsApp a ${f.nombre} ($${f.saldo_deuda_usd.toFixed(2)})`}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedFiadoDetail(f);
+                          setIsAbonoJustCompleted(false);
+                        }}
+                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
+                      >
+                        Historial
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-xl overflow-hidden border border-slate-800">
+                <TablePagination
+                  currentPage={fiadosPagination.currentPage}
+                  pageSize={fiadosPagination.pageSize}
+                  totalPages={fiadosPagination.totalPages}
+                  totalItems={fiadosPagination.totalItems}
+                  startIndex={fiadosPagination.startIndex}
+                  endIndex={fiadosPagination.endIndex}
+                  onPageChange={fiadosPagination.setCurrentPage}
+                  onPageSizeChange={fiadosPagination.setPageSize}
+                  itemLabel="clientes"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-[#14161f] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+              <ColumnConfiguratorToolbar
+                controller={fiadosColResizer}
+                title="Configurar Tamaño de Columnas • Libreta de Fiados"
+              />
+              <div className="overflow-x-auto max-h-[540px]">
+                <table
+                  data-resizable-table={fiadosColResizer.tableId}
+                  className="w-full text-left text-xs text-slate-300"
+                >
+                  <thead className="bg-[#11131a] text-slate-400 uppercase font-mono text-[10px] sticky top-0 z-10 border-b border-slate-800">
+                    <tr>
+                      <th data-col="nombre" className="py-3 px-3 relative">
+                        <span className="pr-2">Vecino / Cliente</span>
+                        <ColumnResizeHandle
+                          colKey="nombre"
+                          resizingCol={fiadosColResizer.resizingCol}
+                          onStartResize={fiadosColResizer.startResize}
+                        />
+                      </th>
+                      <th data-col="direccion" className="py-3 px-3 relative">
+                        <span className="pr-2">Dirección / Casa</span>
+                        <ColumnResizeHandle
+                          colKey="direccion"
+                          resizingCol={fiadosColResizer.resizingCol}
+                          onStartResize={fiadosColResizer.startResize}
+                        />
+                      </th>
+                      <th data-col="telefono" className="py-3 px-3 relative">
+                        <span className="pr-2">Teléfono</span>
+                        <ColumnResizeHandle
+                          colKey="telefono"
+                          resizingCol={fiadosColResizer.resizingCol}
+                          onStartResize={fiadosColResizer.startResize}
+                        />
+                      </th>
+                      <th data-col="estado" className="py-3 px-3 text-center relative">
+                        <span className="pr-2">Estado</span>
+                        <ColumnResizeHandle
+                          colKey="estado"
+                          resizingCol={fiadosColResizer.resizingCol}
+                          onStartResize={fiadosColResizer.startResize}
+                        />
+                      </th>
+                      <th data-col="deuda_usd" className="py-3 px-3 text-right relative">
+                        <span className="pr-2">Saldo Deuda ($)</span>
+                        <ColumnResizeHandle
+                          colKey="deuda_usd"
+                          resizingCol={fiadosColResizer.resizingCol}
+                          onStartResize={fiadosColResizer.startResize}
+                        />
+                      </th>
+                      <th data-col="deuda_ves" className="py-3 px-3 text-right relative">
+                        <span className="pr-2">En Bolívares (Bs.)</span>
+                        <ColumnResizeHandle
+                          colKey="deuda_ves"
+                          resizingCol={fiadosColResizer.resizingCol}
+                          onStartResize={fiadosColResizer.startResize}
+                        />
+                      </th>
+                      <th data-col="acciones" className="py-3 px-3 text-center relative">
+                        <span className="pr-2">Acciones</span>
+                        <ColumnResizeHandle
+                          colKey="acciones"
+                          resizingCol={fiadosColResizer.resizingCol}
+                          onStartResize={fiadosColResizer.startResize}
+                        />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {fiadosPagination.paginatedItems.map((f) => (
+                      <tr key={f.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td data-col="nombre" className="py-2.5 px-3 font-bold text-white truncate">
+                          {f.nombre}
+                        </td>
+                        <td data-col="direccion" className="py-2.5 px-3 text-slate-400 truncate">
+                          {f.direccion}
+                        </td>
+                        <td data-col="telefono" className="py-2.5 px-3 font-mono text-slate-400 truncate">
+                          {f.telefono}
+                        </td>
+                        <td data-col="estado" className="py-2.5 px-3 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              f.saldo_deuda_usd > 0
+                                ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                                : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            }`}
+                          >
+                            {f.saldo_deuda_usd > 0 ? "Debe" : "Al Día"}
+                          </span>
+                        </td>
+                        <td data-col="deuda_usd" className="py-2.5 px-3 text-right font-mono font-bold text-amber-400">
+                          ${f.saldo_deuda_usd.toFixed(2)}
+                        </td>
+                        <td data-col="deuda_ves" className="py-2.5 px-3 text-right font-mono text-slate-300">
+                          Bs. {(f.saldo_deuda_usd * bcvRate).toFixed(2)}
+                        </td>
+                        <td data-col="acciones" className="py-2.5 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedFiadoDetail(f);
+                                setIsAbonoJustCompleted(false);
+                                setIsAbonoModalOpen(true);
+                              }}
+                              disabled={f.saldo_deuda_usd <= 0}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-[11px] font-bold cursor-pointer"
+                            >
+                              Abonar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSendWhatsAppDebtReminder(f)}
+                              disabled={f.saldo_deuda_usd <= 0}
+                              className="p-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/80 disabled:opacity-30 text-emerald-400 border border-emerald-600/50 cursor-pointer"
+                              title="Cobrar por WhatsApp"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedFiadoDetail(f);
+                                setIsAbonoJustCompleted(false);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold cursor-pointer"
+                            >
+                              Historial
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteFiado(f.id, f.nombre)}
+                              className="p-1 rounded-lg text-slate-500 hover:text-rose-400 cursor-pointer"
+                              title="Eliminar vecino"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <TablePagination
+                currentPage={fiadosPagination.currentPage}
+                pageSize={fiadosPagination.pageSize}
+                totalPages={fiadosPagination.totalPages}
+                totalItems={fiadosPagination.totalItems}
+                startIndex={fiadosPagination.startIndex}
+                endIndex={fiadosPagination.endIndex}
+                onPageChange={fiadosPagination.setCurrentPage}
+                onPageSizeChange={fiadosPagination.setPageSize}
+                itemLabel="clientes"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -2027,7 +2807,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
       {/* ========================================================= */}
       {bodegaTab === "etiquetas" && (
         <div className="bg-[#12141a] border border-slate-800 rounded-2xl p-4 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-800 gap-2">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Tag className="w-4 h-4 text-amber-400" />
@@ -2037,17 +2817,49 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
                 Cartelitos de anaquel con precio en dólares y pie de referencia a la tasa BCV oficial del día (Bs. {bcvRate.toFixed(2)}).
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Imprimir Cartelitos</span>
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-[#14161f] border border-slate-800 rounded-xl px-2.5 py-1.5 text-[11px]">
+                <span className="text-slate-400">Columnas por fila:</span>
+                {([2, 3, 4, 6] as const).map((cols) => (
+                  <button
+                    key={cols}
+                    type="button"
+                    onClick={() => {
+                      setAnaquelGridCols(cols);
+                      try { localStorage.setItem("bodega_anaquel_cols", String(cols)); } catch {}
+                    }}
+                    className={`w-6 h-5 rounded font-mono font-bold cursor-pointer transition-colors ${
+                      anaquelGridCols === cols
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-400 hover:text-white bg-slate-900"
+                    }`}
+                  >
+                    {cols}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Imprimir Cartelitos</span>
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
+          <div
+            className={`grid gap-2.5 ${
+              anaquelGridCols === 2
+                ? "grid-cols-1 sm:grid-cols-2"
+                : anaquelGridCols === 3
+                ? "grid-cols-2 sm:grid-cols-3"
+                : anaquelGridCols === 4
+                ? "grid-cols-2 sm:grid-cols-4"
+                : "grid-cols-2 sm:grid-cols-4 md:grid-cols-6"
+            }`}
+          >
             {products.map((p) => (
               <div
                 key={p.id}
@@ -2491,15 +3303,36 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
                             {bcvRate.toFixed(2)}
                           </div>
                         </div>
-                      ) : (
-                        <div className="p-2.5 bg-rose-950/40 border border-rose-500/50 rounded-xl flex items-center gap-2 text-rose-300 text-xs font-medium">
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                          <span>
-                            Faltan <strong>${(effectiveTotalUsd - cashGivenUsd).toFixed(2)} USD</strong>{" "}
-                            (Bs. {((effectiveTotalUsd - cashGivenUsd) * bcvRate).toFixed(2)}) para completar el pago.
-                          </span>
+                      ) : cashGivenUsd > 0 ? (
+                        <div className="p-3 bg-gradient-to-br from-amber-950/60 to-blue-950/40 border border-amber-500/50 rounded-xl space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                            <span>⚡ PAGO MIXTO AUTOMÁTICO ($ + Bs.):</span>
+                            <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/30">
+                              Recibe ${cashGivenUsd.toFixed(2)} USD
+                            </span>
+                          </div>
+                          <div className="bg-[#0e131f] p-2.5 rounded-lg border border-blue-500/40 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-blue-300 block font-medium">
+                                COBRAR DIFERENCIA RESTANTE EN BOLÍVARES:
+                              </span>
+                              <span className="text-lg font-black text-white font-mono">
+                                Bs.{" "}
+                                {((effectiveTotalUsd - cashGivenUsd) * bcvRate).toLocaleString(
+                                  "es-VE",
+                                  { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                                )}
+                              </span>
+                            </div>
+                            <div className="text-right font-mono text-xs text-amber-300 font-bold">
+                              Restan ${(effectiveTotalUsd - cashGivenUsd).toFixed(2)} USD
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-slate-300">
+                            Al confirmar, se registrará como <strong>Pago Mixto ($ + Bs.)</strong> en el Libro de Ventas.
+                          </p>
                         </div>
-                      )}
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -3319,17 +4152,358 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
       )}
 
       {/* ========================================================= */}
+      {/* MODAL DAR AVANCE DE EFECTIVO (COBRO POR PUNTO + % GANANCIA) */}
+      {/* ========================================================= */}
+      {isAvanceModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-[#12141a] border border-emerald-500/40 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto">
+            {/* Header */}
+            <div className="bg-[#181b24] px-5 py-3.5 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400">
+                  <Banknote className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Dar Avance de Efectivo</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      +{avancePorcentaje}% Comisión
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Entrega efectivo de caja y cobra el monto + porcentaje por Punto de Venta
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAvanceModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
+              {/* 1. Configuración del Porcentaje de Ganancia */}
+              <div className="bg-[#14161f] border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                    <span>Porcentaje de Ganancia / Comisión (%):</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    Se guarda automáticamente
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-28">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      max="100"
+                      value={avancePorcentaje}
+                      onChange={(e) =>
+                        handleUpdateAvancePorcentaje(
+                          e.target.value === "" ? 0 : parseFloat(e.target.value)
+                        )
+                      }
+                      className="w-full bg-[#0e1017] border border-emerald-500/50 rounded-xl pl-3 pr-7 py-2 text-sm font-extrabold text-emerald-400 font-mono focus:border-emerald-400 focus:outline-none"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 font-mono">
+                      %
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 flex-1">
+                    {[5, 8, 10, 12, 15, 20].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => handleUpdateAvancePorcentaje(pct)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                          avancePorcentaje === pct
+                            ? "bg-emerald-500 text-slate-950 font-black shadow"
+                            : "bg-[#0e1017] text-slate-300 hover:text-white border border-slate-800"
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Monto de Efectivo a Entregar al Cliente */}
+              <div className="bg-[#14161f] border border-slate-800 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-white">
+                    Monto de Efectivo que Pide el Cliente:
+                  </label>
+                  <div className="flex items-center gap-1 bg-[#0e1017] p-1 rounded-lg border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAvanceMonedaInput("VES");
+                        setAvanceMonedaEntregada("VES");
+                        setAvanceMontoInput("");
+                      }}
+                      className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                        avanceMonedaInput === "VES"
+                          ? "bg-blue-600 text-white"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      En Bolívares (Bs.)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAvanceMonedaInput("USD");
+                        setAvanceMonedaEntregada("USD");
+                        setAvanceMontoInput("");
+                      }}
+                      className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                        avanceMonedaInput === "USD"
+                          ? "bg-amber-500 text-slate-950"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      En Dólares ($)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-extrabold text-emerald-400 font-mono">
+                    {avanceMonedaInput === "VES" ? "Bs." : "$"}
+                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={avanceMontoInput}
+                    onChange={(e) =>
+                      setAvanceMontoInput(
+                        e.target.value === "" ? "" : parseFloat(e.target.value)
+                      )
+                    }
+                    placeholder={
+                      avanceMonedaInput === "VES"
+                        ? "Ej: 500.00"
+                        : "Ej: 10.00"
+                    }
+                    autoFocus
+                    className="w-full bg-[#0e1017] border border-slate-700 rounded-xl pl-12 pr-4 py-2.5 text-lg font-black text-white font-mono focus:border-emerald-400 focus:outline-none"
+                  />
+                </div>
+
+                {/* Botones rápidos de monto */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] text-slate-400 mr-1">Rápido:</span>
+                  {(avanceMonedaInput === "VES"
+                    ? [100, 200, 500, 1000, 2000, 5000]
+                    : [5, 10, 20, 50, 100]
+                  ).map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setAvanceMontoInput(amt)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                        avanceMontoInput === amt
+                          ? "bg-emerald-500 text-slate-950 font-black"
+                          : "bg-[#0e1017] text-slate-300 hover:bg-slate-800 border border-slate-800"
+                      }`}
+                    >
+                      {avanceMonedaInput === "VES" ? `Bs. ${amt}` : `$${amt}`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Billetes físicos entregados de gaveta */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
+                  <span className="text-slate-400">Billetes que entregas de gaveta:</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setAvanceMonedaEntregada("VES")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                        avanceMonedaEntregada === "VES"
+                          ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
+                          : "bg-[#0e1017] border-slate-800 text-slate-400"
+                      }`}
+                    >
+                      🇻🇪 Efectivo Bs.
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAvanceMonedaEntregada("USD")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                        avanceMonedaEntregada === "USD"
+                          ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                          : "bg-[#0e1017] border-slate-800 text-slate-400"
+                      }`}
+                    >
+                      💵 Efectivo $
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Resumen de Liquidación: Efectivo + Ganancia = Total a Pasar por Punto */}
+              <div className="bg-gradient-to-br from-emerald-950/50 to-slate-900 border border-emerald-500/40 rounded-xl p-4 space-y-2.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-300">Efectivo a entregar al cliente:</span>
+                  <span className="font-mono font-bold text-white">
+                    Bs. {avanceCalc.efectivoVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                    <span className="text-slate-400">(${avanceCalc.efectivoUsd.toFixed(2)})</span>
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-emerald-300 font-semibold">
+                    + Ganancia del local ({avancePorcentaje}%):
+                  </span>
+                  <span className="font-mono font-bold text-emerald-400">
+                    + Bs. {avanceCalc.gananciaVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                    <span className="text-emerald-300/70">(+${avanceCalc.gananciaUsd.toFixed(2)})</span>
+                  </span>
+                </div>
+
+                <div className="pt-2.5 border-t border-emerald-500/30 flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wide flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-amber-400" />
+                      <span>TOTAL A COBRAR EN PUNTO DE VENTA:</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Tasa BCV aplicada: Bs. {bcvRate.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="text-right font-mono">
+                    <div className="text-xl font-black text-white">
+                      Bs.{" "}
+                      {avanceCalc.totalPuntoVes.toLocaleString("es-VE", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </div>
+                    <div className="text-xs font-bold text-amber-400">
+                      ≈ ${avanceCalc.totalPuntoUsd.toFixed(2)} USD
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Datos del Punto de Venta / SmartPOS */}
+              <div className="bg-[#14161f] border border-slate-800 rounded-xl p-3.5 space-y-3">
+                {posMode === "smartpos" && (
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <label className="flex items-center gap-2 text-xs font-bold text-blue-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={avanceUseSmartPos}
+                        onChange={(e) => setAvanceUseSmartPos(e.target.checked)}
+                        className="rounded border-slate-700 text-blue-600 focus:ring-blue-500"
+                      />
+                      <Wifi className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Enviar cobro automático al SmartPOS ({wizarPosIp})</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowWizarPosConfigModal(true)}
+                      className="text-[10px] text-blue-400 hover:underline"
+                    >
+                      Configurar IP
+                    </button>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(!avanceUseSmartPos || posMode !== "smartpos") && (
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">
+                        N° Referencia Punto de Venta (Opcional):
+                      </label>
+                      <input
+                        type="text"
+                        value={avanceRefPunto}
+                        onChange={(e) => setAvanceRefPunto(e.target.value)}
+                        placeholder="Ej: 004918..."
+                        className="w-full bg-[#0e1017] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:border-emerald-400 focus:outline-none"
+                      />
+                    </div>
+                  )}
+                  <div className={(!avanceUseSmartPos || posMode !== "smartpos") ? "" : "sm:col-span-2"}>
+                    <label className="text-[11px] text-slate-400 block mb-1">
+                      Cliente / Nota (Opcional):
+                    </label>
+                    <input
+                      type="text"
+                      value={avanceClienteNombre}
+                      onChange={(e) => setAvanceClienteNombre(e.target.value)}
+                      placeholder="Ej: Cliente Mostrador / C.I..."
+                      className="w-full bg-[#0e1017] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:border-emerald-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-[#181b24] px-5 py-3.5 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsAvanceModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmAvanceClick}
+                disabled={avanceCalc.efectivoVes <= 0}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-40 text-slate-950 text-xs font-black flex items-center gap-2 shadow-lg shadow-emerald-950/50 cursor-pointer transition-all"
+              >
+                <CreditCard className="w-4 h-4 text-slate-950" />
+                <span>
+                  {posMode === "smartpos" && avanceUseSmartPos
+                    ? `Cobrar Bs. ${avanceCalc.totalPuntoVes.toFixed(2)} en SmartPOS`
+                    : `Confirmar Cobro en Punto (Bs. ${avanceCalc.totalPuntoVes.toFixed(2)})`}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* MODAL SMARTPOS WIZARPOS / PAX / MEGASOFT / BANCAMIGA */}
       {/* ========================================================= */}
       <WizarPosModal
         isOpen={showWizarPosModal}
-        totalVes={effectiveTotalVes}
-        totalUsd={effectiveTotalUsd}
-        facturaNumero={`BOD-${Math.floor(1000 + Math.random() * 9000)}`}
-        clienteNombre="Cliente de Mostrador"
+        totalVes={isAvanceSmartPosPending ? avanceCalc.totalPuntoVes : effectiveTotalVes}
+        totalUsd={isAvanceSmartPosPending ? avanceCalc.totalPuntoUsd : effectiveTotalUsd}
+        facturaNumero={
+          isAvanceSmartPosPending
+            ? `AVA-${Math.floor(1000 + Math.random() * 9000)}`
+            : `BOD-${Math.floor(1000 + Math.random() * 9000)}`
+        }
+        clienteNombre={
+          isAvanceSmartPosPending
+            ? avanceClienteNombre.trim() || "Cliente de Mostrador (Avance)"
+            : "Cliente de Mostrador"
+        }
         clienteRif="V-00000000-0"
         onSuccess={handleSmartPosSuccess}
-        onCancel={() => setShowWizarPosModal(false)}
+        onCancel={() => {
+          setShowWizarPosModal(false);
+          setIsAvanceSmartPosPending(false);
+        }}
       />
 
       {/* MODAL CONFIGURACIÓN SMARTPOS */}
@@ -3771,4 +4945,5 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = ({
       )}
     </div>
   );
-};
+});
+

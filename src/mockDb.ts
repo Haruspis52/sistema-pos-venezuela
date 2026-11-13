@@ -17,6 +17,7 @@ import {
   ClienteDirectorio,
   RubroNegocio,
 } from "./types";
+import { APP_VERSION } from "./version";
 
 const STORAGE_KEY_PRODUCTS = "sqlite_inventario_venezuela_productos_v2";
 const STORAGE_KEY_CATEGORIES = "sqlite_inventario_venezuela_categorias_v2";
@@ -170,6 +171,7 @@ export const DEFAULT_REMOTE_LICENSE: RemoteClientLicense = {
   estado_remoto: "ACTIVO",
   dias_gracia_offline_max: 30,
   ultimo_contacto_servidor: new Date().toISOString(),
+  version_instalada: APP_VERSION,
   motivo_bloqueo: "",
   observaciones: "Sistema POS para Clientes en Producción (Node.js).",
 };
@@ -203,6 +205,15 @@ export const INITIAL_CATEGORIES: Categoria[] = [
   { id: 7, nombre: "Medicamentos", descripcion: "Fármacos y productos farmacéuticos esenciales" },
 ];
 
+const getRelativeDateStr = (daysOffset: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + daysOffset);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 export const INITIAL_PRODUCTS: Producto[] = [
   {
     id: 1,
@@ -218,6 +229,8 @@ export const INITIAL_PRODUCTS: Producto[] = [
     alicuota_iva: 0, // Exento según Ley de IVA canasta alimentaria
     unidad_medida: "Pza",
     fecha_registro: "2026-09-01 08:30:00",
+    lote: "L-POL-0926",
+    fecha_vencimiento: getRelativeDateStr(120),
   },
   {
     id: 2,
@@ -233,6 +246,8 @@ export const INITIAL_PRODUCTS: Producto[] = [
     alicuota_iva: 0, // Exento
     unidad_medida: "Pza",
     fecha_registro: "2026-09-01 09:15:00",
+    lote: "L-ARR-104",
+    fecha_vencimiento: getRelativeDateStr(180),
   },
   {
     id: 3,
@@ -248,6 +263,8 @@ export const INITIAL_PRODUCTS: Producto[] = [
     alicuota_iva: 16, // Gravado 16% IVA
     unidad_medida: "Pza",
     fecha_registro: "2026-09-02 10:00:00",
+    lote: "L-BEB-402",
+    fecha_vencimiento: getRelativeDateStr(60),
   },
   {
     id: 4,
@@ -263,6 +280,8 @@ export const INITIAL_PRODUCTS: Producto[] = [
     alicuota_iva: 0, // Exento
     unidad_medida: "Pza",
     fecha_registro: "2026-09-03 11:20:00",
+    lote: "L-ACE-88",
+    fecha_vencimiento: getRelativeDateStr(240),
   },
   {
     id: 5,
@@ -293,6 +312,8 @@ export const INITIAL_PRODUCTS: Producto[] = [
     alicuota_iva: 0, // Exento
     unidad_medida: "Pza",
     fecha_registro: "2026-09-05 09:40:00",
+    lote: "L-LAC-019",
+    fecha_vencimiento: getRelativeDateStr(6), // Próximo a vencer (<= 15 días)
   },
   {
     id: 7,
@@ -308,6 +329,8 @@ export const INITIAL_PRODUCTS: Producto[] = [
     alicuota_iva: 0, // Exento
     unidad_medida: "Pza",
     fecha_registro: "2026-09-06 15:30:00",
+    lote: "L-CAF-311",
+    fecha_vencimiento: getRelativeDateStr(12), // Próximo a vencer (<= 15 días)
   },
   {
     id: 8,
@@ -323,6 +346,8 @@ export const INITIAL_PRODUCTS: Producto[] = [
     alicuota_iva: 16, // Gravado 16% IVA
     unidad_medida: "Pza",
     fecha_registro: "2026-09-07 16:10:00",
+    lote: "L-GAL-05",
+    fecha_vencimiento: getRelativeDateStr(90),
   },
 ];
 
@@ -416,7 +441,60 @@ export function calcularPMP(
   return parseFloat(nuevoPMP.toFixed(4));
 }
 
+// ============================================================================
+// CACHÉ EN MEMORIA Y ESCRITURA DIFERIDA EN LOCALSTORAGE (OPTIMIZACIÓN I/O)
+// ============================================================================
+const memoryStorageCache = new Map<string, any>();
+const pendingStorageWrites = new Map<string, string>();
+let storageFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushPendingStorageWrites(): void {
+  if (storageFlushTimer) {
+    clearTimeout(storageFlushTimer);
+    storageFlushTimer = null;
+  }
+  if (pendingStorageWrites.size === 0) return;
+  pendingStorageWrites.forEach((serialized, key) => {
+    try {
+      localStorage.setItem(key, serialized);
+    } catch (e) {
+      console.error(`Error persistiendo clave ${key}:`, e);
+    }
+  });
+  pendingStorageWrites.clear();
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", flushPendingStorageWrites);
+}
+
+function scheduleCachedWrite<T>(key: string, value: T, immediate = false): void {
+  memoryStorageCache.set(key, value);
+  try {
+    const serialized = typeof value === "string" ? value : JSON.stringify(value);
+    if (immediate) {
+      pendingStorageWrites.delete(key);
+      localStorage.setItem(key, serialized);
+      return;
+    }
+    pendingStorageWrites.set(key, serialized);
+    if (!storageFlushTimer) {
+      storageFlushTimer = setTimeout(flushPendingStorageWrites, 120);
+    }
+  } catch (e) {
+    console.error(`Error preparando escritura para ${key}:`, e);
+  }
+}
+
+export function clearMemoryStorageCache(): void {
+  flushPendingStorageWrites();
+  memoryStorageCache.clear();
+}
+
 export function getStoredCategories(): Categoria[] {
+  if (memoryStorageCache.has(STORAGE_KEY_CATEGORIES)) {
+    return memoryStorageCache.get(STORAGE_KEY_CATEGORIES);
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CATEGORIES);
     if (raw) {
@@ -433,7 +511,9 @@ export function getStoredCategories(): Categoria[] {
             descripcion: "Fármacos y productos farmacéuticos esenciales",
           };
           parsed.push(medCat);
-          localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(parsed));
+          scheduleCachedWrite(STORAGE_KEY_CATEGORIES, parsed);
+        } else {
+          memoryStorageCache.set(STORAGE_KEY_CATEGORIES, parsed);
         }
         return parsed;
       }
@@ -441,7 +521,7 @@ export function getStoredCategories(): Categoria[] {
   } catch (e) {
     console.error(e);
   }
-  localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
+  scheduleCachedWrite(STORAGE_KEY_CATEGORIES, INITIAL_CATEGORIES, true);
   return INITIAL_CATEGORIES;
 }
 
@@ -483,6 +563,9 @@ export function sanitizeProduct(p: any, fallbackId: number): Producto {
 }
 
 export function getStoredProducts(): Producto[] {
+  if (memoryStorageCache.has(STORAGE_KEY_PRODUCTS)) {
+    return memoryStorageCache.get(STORAGE_KEY_PRODUCTS);
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PRODUCTS);
     if (raw) {
@@ -490,7 +573,7 @@ export function getStoredProducts(): Producto[] {
       if (Array.isArray(parsed) && parsed.length > 0) {
         const usedIds = new Set<number>();
         let nextSafeId = 1;
-        return parsed.map((item: any, idx: number) => {
+        const sanitized = parsed.map((item: any, idx: number) => {
           let clean = sanitizeProduct(item, idx + 1);
           if (usedIds.has(clean.id)) {
             while (usedIds.has(nextSafeId)) nextSafeId++;
@@ -500,32 +583,41 @@ export function getStoredProducts(): Producto[] {
           usedIds.add(clean.id);
           return clean;
         });
+        memoryStorageCache.set(STORAGE_KEY_PRODUCTS, sanitized);
+        return sanitized;
       }
     }
   } catch (e) {
     console.error(e);
   }
-  localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
+  scheduleCachedWrite(STORAGE_KEY_PRODUCTS, INITIAL_PRODUCTS, true);
   return INITIAL_PRODUCTS;
 }
 
 export function saveProducts(products: Producto[]): void {
-  localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(products));
+  scheduleCachedWrite(STORAGE_KEY_PRODUCTS, products);
 }
 
 export function getStoredMovements(): Movimiento[] {
+  if (memoryStorageCache.has(STORAGE_KEY_MOVEMENTS)) {
+    return memoryStorageCache.get(STORAGE_KEY_MOVEMENTS);
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_MOVEMENTS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      memoryStorageCache.set(STORAGE_KEY_MOVEMENTS, parsed);
+      return parsed;
+    }
   } catch (e) {
     console.error(e);
   }
-  localStorage.setItem(STORAGE_KEY_MOVEMENTS, JSON.stringify(INITIAL_MOVEMENTS));
+  scheduleCachedWrite(STORAGE_KEY_MOVEMENTS, INITIAL_MOVEMENTS, true);
   return INITIAL_MOVEMENTS;
 }
 
 export function saveMovements(movements: Movimiento[]): void {
-  localStorage.setItem(STORAGE_KEY_MOVEMENTS, JSON.stringify(movements));
+  scheduleCachedWrite(STORAGE_KEY_MOVEMENTS, movements);
 }
 
 export const INITIAL_SALES: Venta[] = [
@@ -662,21 +754,27 @@ export const INITIAL_SALES: Venta[] = [
 ];
 
 export function getStoredSales(): Venta[] {
+  if (memoryStorageCache.has(STORAGE_KEY_SALES)) {
+    return memoryStorageCache.get(STORAGE_KEY_SALES);
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_SALES);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        memoryStorageCache.set(STORAGE_KEY_SALES, parsed);
+        return parsed;
+      }
     }
   } catch (e) {
     console.error(e);
   }
-  localStorage.setItem(STORAGE_KEY_SALES, JSON.stringify(INITIAL_SALES));
+  scheduleCachedWrite(STORAGE_KEY_SALES, INITIAL_SALES, true);
   return INITIAL_SALES;
 }
 
 export function saveSales(sales: Venta[]): void {
-  localStorage.setItem(STORAGE_KEY_SALES, JSON.stringify(sales));
+  scheduleCachedWrite(STORAGE_KEY_SALES, sales);
 }
 
 const STORAGE_KEY_BCV_INFO = "sqlite_inventario_venezuela_bcv_info_v2";
@@ -836,22 +934,25 @@ export const INITIAL_FIADOS: FiadoCliente[] = [
 ];
 
 export function getStoredFiados(): FiadoCliente[] {
+  if (memoryStorageCache.has(STORAGE_KEY_FIADOS)) {
+    return memoryStorageCache.get(STORAGE_KEY_FIADOS);
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_FIADOS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      memoryStorageCache.set(STORAGE_KEY_FIADOS, parsed);
+      return parsed;
+    }
   } catch (e) {
     console.error(e);
   }
-  localStorage.setItem(STORAGE_KEY_FIADOS, JSON.stringify(INITIAL_FIADOS));
+  scheduleCachedWrite(STORAGE_KEY_FIADOS, INITIAL_FIADOS, true);
   return INITIAL_FIADOS;
 }
 
 export function saveFiados(fiados: FiadoCliente[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_FIADOS, JSON.stringify(fiados));
-  } catch (e) {
-    console.error(e);
-  }
+  scheduleCachedWrite(STORAGE_KEY_FIADOS, fiados);
 }
 
 export const INITIAL_CIERRES: CierreCajaRecord[] = [
@@ -904,47 +1005,209 @@ export const INITIAL_CIERRES: CierreCajaRecord[] = [
 ];
 
 export function getStoredCierresCaja(): CierreCajaRecord[] {
+  if (memoryStorageCache.has(STORAGE_KEY_CIERRES)) {
+    return memoryStorageCache.get(STORAGE_KEY_CIERRES);
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CIERRES);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      memoryStorageCache.set(STORAGE_KEY_CIERRES, parsed);
+      return parsed;
+    }
   } catch (e) {
     console.error(e);
   }
-  localStorage.setItem(STORAGE_KEY_CIERRES, JSON.stringify(INITIAL_CIERRES));
+  scheduleCachedWrite(STORAGE_KEY_CIERRES, INITIAL_CIERRES, true);
   return INITIAL_CIERRES;
 }
 
 export function saveCierresCaja(cierres: CierreCajaRecord[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_CIERRES, JSON.stringify(cierres));
-  } catch (e) {
-    console.error(e);
-  }
+  scheduleCachedWrite(STORAGE_KEY_CIERRES, cierres);
 }
 
 export const STORAGE_KEY_EDITION = "sistema_edicion_activa";
 export const STORAGE_KEY_FISCAL_UNLOCKED = "sistema_fiscal_licencia_desbloqueada";
-export const MASTER_UNLOCK_CODE = "FISCAL-ADMIN-2552";
+
+const UNLOCK_HASH_SALT = "FARADAY-POS-VE-SALT-9941::";
+const FISCAL_UNLOCK_SHA256 = "f097da3bb833d569db0400e5dae570175429fc21d6b00440d55b26259b0b2750";
+const BODEGA_UNLOCK_SHA256 = "72f3f5432e382c575b37834b39b1c65099f12fa2e0106ae5310da9a3f115607c";
+
+/**
+ * Calcula el hash criptográfico SHA-256 (en hexadecimal) de forma síncrona
+ * para validar códigos de activación sin exponer las claves en texto plano.
+ */
+export function computeSha256Hex(asciiInput: string): string {
+  function rightRotate(value: number, amount: number): number {
+    return (value >>> amount) | (value << (32 - amount));
+  }
+
+  const maxWord = Math.pow(2, 32);
+  let result = "";
+  const words: number[] = [];
+  let ascii = unescape(encodeURIComponent(asciiInput));
+  const asciiBitLength = ascii.length * 8;
+
+  let hash: number[] = [];
+  const k: number[] = [];
+  let primeCounter = 0;
+  const isComposite: Record<number, number> = {};
+
+  for (let candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (let i = 0; i < 313; i += candidate) {
+        isComposite[i] = candidate;
+      }
+      hash[primeCounter] = (Math.pow(candidate, 0.5) * maxWord) | 0;
+      k[primeCounter++] = (Math.pow(candidate, 1 / 3) * maxWord) | 0;
+    }
+  }
+
+  ascii += "\x80";
+  while ((ascii.length % 64) - 56) ascii += "\x00";
+  for (let i = 0; i < ascii.length; i++) {
+    const j = ascii.charCodeAt(i);
+    if (j >> 8) return "";
+    words[i >> 2] |= j << ((3 - (i % 4)) * 8);
+  }
+  words[words.length] = (asciiBitLength / maxWord) | 0;
+  words[words.length] = asciiBitLength;
+
+  for (let j = 0; j < words.length; ) {
+    const w = words.slice(j, (j += 16));
+    const oldHash = hash;
+    hash = hash.slice(0, 8);
+
+    for (let i = 0; i < 64; i++) {
+      const w15 = w[i - 15];
+      const w2 = w[i - 2];
+      const a = hash[0];
+      const e = hash[4];
+      const temp1 =
+        hash[7] +
+        (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
+        ((e & hash[5]) ^ (~e & hash[6])) +
+        k[i] +
+        (w[i] =
+          i < 16
+            ? w[i]
+            : (w[i - 16] +
+                (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) +
+                w[i - 7] +
+                (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) |
+              0);
+      const temp2 =
+        (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
+        ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+
+      hash = [(temp1 + temp2) | 0].concat(hash);
+      hash[4] = (hash[4] + temp1) | 0;
+    }
+
+    for (let i = 0; i < 8; i++) {
+      hash[i] = (hash[i] + oldHash[i]) | 0;
+    }
+  }
+
+  for (let i = 0; i < 8; i++) {
+    for (let j = 3; j + 1; j--) {
+      const b = (hash[i] >> (j * 8)) & 255;
+      result += (b < 16 ? "0" : "") + b.toString(16);
+    }
+  }
+  return result;
+}
+
+export function parseContractedEdition(raw: unknown): "bodega" | "fiscal" | "ambas" {
+  if (Array.isArray(raw)) {
+    const str = raw.map((x) => String(x).toLowerCase()).join(" ");
+    if (str.includes("bodega") && str.includes("fiscal")) return "ambas";
+    if (str.includes("fiscal")) return "fiscal";
+    return "bodega";
+  }
+  const s = String(raw || "bodega").trim().toLowerCase();
+  if (
+    s === "ambas" ||
+    s === "ambos" ||
+    s === "todas" ||
+    s === "full" ||
+    s === "completa" ||
+    s === "dual" ||
+    (s.includes("bodega") && s.includes("fiscal"))
+  ) {
+    return "ambas";
+  }
+  if (s.includes("fiscal")) {
+    return "fiscal";
+  }
+  return "bodega";
+}
+
+/**
+ * Devuelve la cuota mensual en USD según la edición contratada:
+ * - Bodega: $15
+ * - Fiscal: $25
+ * - Ambas (Bodega + Fiscal): $35
+ */
+export function getCuotaMensualPorEdicion(
+  edicion: "bodega" | "fiscal" | "ambas" | string | undefined | null
+): number {
+  const parsed = parseContractedEdition(edicion);
+  if (parsed === "ambas") return 35;
+  if (parsed === "fiscal") return 25;
+  return 15;
+}
+
+export function isEditionAuthorizedByLicense(
+  targetEdition: "bodega" | "fiscal",
+  license?: RemoteClientLicense
+): boolean {
+  const lic = license || getRemoteLicense();
+  const contracted = parseContractedEdition(lic.edicion_contratada);
+  if (contracted === "ambas") return true;
+  return contracted === targetEdition;
+}
 
 export function isFiscalEditionUnlocked(): boolean {
   try {
-    const val = localStorage.getItem(STORAGE_KEY_FISCAL_UNLOCKED);
-    return val === "true";
+    return isEditionAuthorizedByLicense("fiscal");
   } catch (e) {
     return false;
   }
 }
 
-export function unlockFiscalEdition(code: string): { success: boolean; message: string } {
-  if (code.trim() === MASTER_UNLOCK_CODE) {
+export function unlockFiscalEdition(
+  code: string,
+  targetEdition?: "bodega" | "fiscal"
+): { success: boolean; message: string } {
+  const clean = code.trim().toUpperCase();
+  if (!clean) {
+    return {
+      success: false,
+      message: "Código de activación incorrecto. Verifique con el administrador.",
+    };
+  }
+
+  const candidateHash = computeSha256Hex(UNLOCK_HASH_SALT + clean);
+  const isValidForTarget =
+    targetEdition === "fiscal"
+      ? candidateHash === FISCAL_UNLOCK_SHA256
+      : targetEdition === "bodega"
+        ? candidateHash === BODEGA_UNLOCK_SHA256
+        : candidateHash === FISCAL_UNLOCK_SHA256 || candidateHash === BODEGA_UNLOCK_SHA256;
+
+  if (isValidForTarget) {
     try {
       localStorage.setItem(STORAGE_KEY_FISCAL_UNLOCKED, "true");
     } catch (e) {
       console.error(e);
     }
-    return { success: true, message: "¡Edición Fiscal SENIAT activada exitosamente!" };
+    return { success: true, message: "¡Edición activada exitosamente!" };
   }
-  return { success: false, message: "Código de activación incorrecto. Verifique con el administrador." };
+  return {
+    success: false,
+    message: "Código de activación incorrecto. Verifique con el administrador.",
+  };
 }
 
 export function revokeFiscalEdition(): void {
@@ -957,21 +1220,30 @@ export function revokeFiscalEdition(): void {
 
 export function getStoredAppEdition(): { edition: "bodega" | "fiscal"; isFirstRun: boolean } {
   try {
+    const lic = getRemoteLicense();
+    const contracted = parseContractedEdition(lic.edicion_contratada);
     const raw = localStorage.getItem(STORAGE_KEY_EDITION);
     if (raw) {
       const parsed = JSON.parse(raw);
-      const savedEdition = parsed.edition || "bodega";
-      // Si la edición guardada es fiscal pero no está desbloqueada, revertir a bodega
-      if (savedEdition === "fiscal" && !isFiscalEditionUnlocked()) {
+      const savedEdition: "bodega" | "fiscal" = parsed.edition === "fiscal" ? "fiscal" : "bodega";
+      // Si la licencia solo tiene 'bodega', forzar 'bodega'
+      if (contracted === "bodega") {
+        revokeFiscalEdition();
         return { edition: "bodega", isFirstRun: false };
       }
+      // Si la licencia solo tiene 'fiscal', forzar 'fiscal' (no incluye bodega automáticamente)
+      if (contracted === "fiscal") {
+        return { edition: "fiscal", isFirstRun: false };
+      }
+      // Si tiene 'ambas', respetar la última edición seleccionada por el usuario
       return { edition: savedEdition, isFirstRun: false };
     }
   } catch (e) {
     console.error(e);
   }
-  // If first run, default to bodega with isFirstRun: true
-  return { edition: "bodega", isFirstRun: true };
+  const lic = getRemoteLicense();
+  const contracted = parseContractedEdition(lic.edicion_contratada);
+  return { edition: contracted === "fiscal" ? "fiscal" : "bodega", isFirstRun: true };
 }
 
 export function saveAppEdition(edition: "bodega" | "fiscal"): void {
@@ -1013,6 +1285,7 @@ export function getRemoteLicense(): RemoteClientLicense {
     const raw = localStorage.getItem(STORAGE_KEY_REMOTE_LICENSE);
     if (raw) {
       const parsed: RemoteClientLicense = JSON.parse(raw);
+      parsed.edicion_contratada = parseContractedEdition(parsed.edicion_contratada);
       if (parsed.fecha_vencimiento_actual === "2099-12-31" || !parsed.fecha_vencimiento_actual) {
         parsed.fecha_vencimiento_actual = getDefault30DaysExpiry();
         saveRemoteLicense(parsed);
@@ -1027,7 +1300,21 @@ export function getRemoteLicense(): RemoteClientLicense {
 
 export function saveRemoteLicense(license: RemoteClientLicense): void {
   try {
-    localStorage.setItem(STORAGE_KEY_REMOTE_LICENSE, JSON.stringify(license));
+    const normalizedEdition = parseContractedEdition(license.edicion_contratada);
+    const normalizedLicense: RemoteClientLicense = {
+      ...license,
+      edicion_contratada: normalizedEdition,
+    };
+    localStorage.setItem(STORAGE_KEY_REMOTE_LICENSE, JSON.stringify(normalizedLicense));
+    if (normalizedEdition === "bodega") {
+      revokeFiscalEdition();
+      saveAppEdition("bodega");
+    } else if (normalizedEdition === "fiscal") {
+      localStorage.setItem(STORAGE_KEY_FISCAL_UNLOCKED, "true");
+      saveAppEdition("fiscal");
+    } else if (normalizedEdition === "ambas") {
+      localStorage.setItem(STORAGE_KEY_FISCAL_UNLOCKED, "true");
+    }
   } catch (e) {
     console.error(e);
   }
@@ -1039,7 +1326,7 @@ export const STORAGE_KEY_REGISTERED_LICENSES = "pos_registered_licenses_catalog_
 export interface RegisteredClientLicense {
   cliente_id: string;
   nombre_referencia: string;
-  edicion_contratada: "bodega" | "fiscal";
+  edicion_contratada: "bodega" | "fiscal" | "ambas";
   cuota_mensual_usd: number;
   fecha_emision: string;
   fecha_vencimiento: string;
@@ -1063,7 +1350,7 @@ export const INITIAL_REGISTERED_LICENSES: RegisteredClientLicense[] = [
     cliente_id: "CLI-FSC-2001",
     nombre_referencia: "Distribuidora Caracas 2026, C.A. (Ejemplo)",
     edicion_contratada: "fiscal",
-    cuota_mensual_usd: 30,
+    cuota_mensual_usd: 25,
     fecha_emision: "2026-01-01",
     fecha_vencimiento: getDefault30DaysExpiry(),
     estado: "ACTIVO",
@@ -1256,15 +1543,16 @@ export function renewClientSubscription(daysToAdd: number = 30): RemoteClientLic
 }
 
 export function resetDatabaseToDefault(): void {
-  localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
-  localStorage.setItem(STORAGE_KEY_PRODUCTS, JSON.stringify(INITIAL_PRODUCTS));
-  localStorage.setItem(STORAGE_KEY_MOVEMENTS, JSON.stringify(INITIAL_MOVEMENTS));
-  localStorage.setItem(STORAGE_KEY_SALES, JSON.stringify(INITIAL_SALES));
-  localStorage.setItem(STORAGE_KEY_FIADOS, JSON.stringify(INITIAL_FIADOS));
-  localStorage.setItem(STORAGE_KEY_CIERRES, JSON.stringify([]));
-  localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(INITIAL_USERS));
-  localStorage.setItem(STORAGE_KEY_CURRENT_USER, JSON.stringify(INITIAL_USERS[0]));
-  localStorage.setItem(STORAGE_KEY_REMOTE_LICENSE, JSON.stringify(DEFAULT_REMOTE_LICENSE));
+  clearMemoryStorageCache();
+  scheduleCachedWrite(STORAGE_KEY_CATEGORIES, INITIAL_CATEGORIES, true);
+  scheduleCachedWrite(STORAGE_KEY_PRODUCTS, INITIAL_PRODUCTS, true);
+  scheduleCachedWrite(STORAGE_KEY_MOVEMENTS, INITIAL_MOVEMENTS, true);
+  scheduleCachedWrite(STORAGE_KEY_SALES, INITIAL_SALES, true);
+  scheduleCachedWrite(STORAGE_KEY_FIADOS, INITIAL_FIADOS, true);
+  scheduleCachedWrite(STORAGE_KEY_CIERRES, [], true);
+  scheduleCachedWrite(STORAGE_KEY_USERS, INITIAL_USERS, true);
+  scheduleCachedWrite(STORAGE_KEY_CURRENT_USER, INITIAL_USERS[0], true);
+  scheduleCachedWrite(STORAGE_KEY_REMOTE_LICENSE, DEFAULT_REMOTE_LICENSE, true);
   localStorage.setItem(STORAGE_KEY_BCV_RATE, "36.50");
   localStorage.setItem(STORAGE_KEY_CORRELATIVOS, JSON.stringify({ facturaNum: 452, controlNum: 1890 }));
 }
@@ -1340,6 +1628,7 @@ export function verifyAdminPin(enteredPin: string): boolean {
 
 export function resetEntireApplication(): void {
   try {
+    clearMemoryStorageCache();
     localStorage.clear();
     sessionStorage.clear();
   } catch (e) {
@@ -1365,7 +1654,7 @@ export function generateFullDatabaseBackup(tipo: 'COMPLETA' | 'SOLO_INVENTARIO' 
   const posModeInfo = getStoredPosOperationalMode();
 
   const payload: DatabaseBackupPayload = {
-    version: "2.4.0",
+    version: APP_VERSION,
     fecha_respaldo: new Date().toISOString(),
     sistema: "Sistema POS & Facturacion Venezuela",
     tipo_exportacion: tipo,
@@ -1507,7 +1796,7 @@ export function getStoredTermsAcceptance(): TermsAcceptanceRecord {
     accepted: true,
     acceptedAt: "2026-09-01T08:00:00.000Z",
     acceptedBy: "admin",
-    version: "v2.4",
+    version: `v${APP_VERSION}`,
   };
 }
 
@@ -1520,11 +1809,7 @@ export function saveStoredTermsAcceptance(record: TermsAcceptanceRecord): void {
 }
 
 export function saveCategories(categories: Categoria[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(categories));
-  } catch (e) {
-    console.error("Error saving categories:", e);
-  }
+  scheduleCachedWrite(STORAGE_KEY_CATEGORIES, categories);
 }
 
 // ============================================================================
@@ -1551,10 +1836,15 @@ export const DEFAULT_NEGOCIO_CONFIG: NegocioClienteConfig = {
 };
 
 export function getStoredNegocioConfig(): NegocioClienteConfig {
+  if (memoryStorageCache.has(STORAGE_KEY_NEGOCIO_CONFIG)) {
+    return memoryStorageCache.get(STORAGE_KEY_NEGOCIO_CONFIG);
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_NEGOCIO_CONFIG);
     if (raw) {
-      return { ...DEFAULT_NEGOCIO_CONFIG, ...JSON.parse(raw) };
+      const merged = { ...DEFAULT_NEGOCIO_CONFIG, ...JSON.parse(raw) };
+      memoryStorageCache.set(STORAGE_KEY_NEGOCIO_CONFIG, merged);
+      return merged;
     }
   } catch (e) {
     console.error("Error reading negocio config:", e);
@@ -1564,7 +1854,7 @@ export function getStoredNegocioConfig(): NegocioClienteConfig {
 
 export function saveStoredNegocioConfig(config: NegocioClienteConfig): void {
   try {
-    localStorage.setItem(STORAGE_KEY_NEGOCIO_CONFIG, JSON.stringify(config));
+    scheduleCachedWrite(STORAGE_KEY_NEGOCIO_CONFIG, config, true);
     // Sincronizar también con la estructura de EmisorFiscal
     const emisor: EmisorFiscal = {
       rif: config.rif,
@@ -1573,7 +1863,7 @@ export function saveStoredNegocioConfig(config: NegocioClienteConfig): void {
       telefono: config.telefono,
       providencia_fiscal: "SNAT/00071 - Contribuyente Ordinario IVA",
     };
-    localStorage.setItem(STORAGE_KEY_EMISOR_FISCAL, JSON.stringify(emisor));
+    scheduleCachedWrite(STORAGE_KEY_EMISOR_FISCAL, emisor, true);
   } catch (e) {
     console.error("Error saving negocio config:", e);
   }
@@ -1682,22 +1972,25 @@ export const INITIAL_CLIENTES_DIRECTORIO: ClienteDirectorio[] = [
 ];
 
 export function getStoredClientes(): ClienteDirectorio[] {
+  if (memoryStorageCache.has(STORAGE_KEY_CLIENTES_DIRECTORIO)) {
+    return memoryStorageCache.get(STORAGE_KEY_CLIENTES_DIRECTORIO);
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CLIENTES_DIRECTORIO);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      memoryStorageCache.set(STORAGE_KEY_CLIENTES_DIRECTORIO, parsed);
+      return parsed;
+    }
   } catch (e) {
     console.error("Error loading clientes:", e);
   }
-  localStorage.setItem(STORAGE_KEY_CLIENTES_DIRECTORIO, JSON.stringify(INITIAL_CLIENTES_DIRECTORIO));
+  scheduleCachedWrite(STORAGE_KEY_CLIENTES_DIRECTORIO, INITIAL_CLIENTES_DIRECTORIO, true);
   return INITIAL_CLIENTES_DIRECTORIO;
 }
 
 export function saveClientes(clientes: ClienteDirectorio[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_CLIENTES_DIRECTORIO, JSON.stringify(clientes));
-  } catch (e) {
-    console.error("Error saving clientes:", e);
-  }
+  scheduleCachedWrite(STORAGE_KEY_CLIENTES_DIRECTORIO, clientes);
 }
 
 export function addOrUpdateCliente(cliente: ClienteDirectorio): ClienteDirectorio[] {

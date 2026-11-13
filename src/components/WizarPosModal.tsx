@@ -67,6 +67,8 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
   const [showConfig, setShowConfig] = useState(false);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "warning">("idle");
   const [testMessage, setTestMessage] = useState("");
+  const [lanReachable, setLanReachable] = useState<boolean | null>(null);
+  const [connectionMode, setConnectionMode] = useState<string>("CONNECTING");
 
   // Payment transaction state
   // 'connecting' -> 'waiting_card' -> 'processing' -> 'approved' | 'declined' | 'manual'
@@ -85,44 +87,84 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
     localStorage.setItem("wizarpos_config", JSON.stringify(newConfig));
   };
 
+  // Reload config from localStorage whenever modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      const saved = localStorage.getItem("wizarpos_config");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setConfig((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch {
+      // ignore
+    }
+  }, [isOpen]);
+
   // Run transaction sequence when modal opens
   useEffect(() => {
     if (!isOpen) return;
 
+    let currentCfg = config;
+    try {
+      const saved = localStorage.getItem("wizarpos_config");
+      if (saved) {
+        currentCfg = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+      }
+    } catch {
+      // ignore
+    }
+
     setTxStep("connecting");
     setErrorMessage(null);
     setTxResult(null);
-    setSecondsRemaining(config.timeoutSegundos);
+    setLanReachable(null);
+    setConnectionMode("CONNECTING");
+    setSecondsRemaining(currentCfg.timeoutSegundos || 30);
 
-    // Call server to initiate or attempt contact
+    let cancelled = false;
+
+    // Call server to initiate real LAN ECR contact
     fetch("/api/wizarpos/payment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ip: config.ip,
-        port: config.puerto,
+        ip: currentCfg.ip,
+        port: currentCfg.puerto,
         amountVes: totalVes,
         invoiceNumber: facturaNumero,
-        protocol: config.protocolo,
-        timeoutSegundos: config.timeoutSegundos,
+        clienteRif,
+        clienteNombre,
+        protocol: currentCfg.protocolo,
+        modelo: currentCfg.modelo || "PAX_A920",
+        switchRed: currentCfg.switchRed || currentCfg.protocolo || "MEGASOFT",
+        timeoutSegundos: currentCfg.timeoutSegundos,
       }),
     })
       .then((r) => r.json())
-      .catch(() => ({ success: true, simulated: true }))
+      .catch(() => ({
+        success: true,
+        reachable: false,
+        connectionMode: "FALLBACK_SIMULATION",
+        status: "waiting_card",
+      }))
       .then((data) => {
-        // Connected to terminal, now waiting for card
-        setTxStep("waiting_card");
+        if (cancelled) return;
+        setLanReachable(Boolean(data.reachable));
+        setConnectionMode(data.connectionMode || "FALLBACK_SIMULATION");
+
+        if (data.status === "approved" && data.transactionResult) {
+          setTxResult(data.transactionResult);
+          setTxStep("approved");
+        } else {
+          setTxStep("waiting_card");
+        }
       });
 
-    // Step progression simulation timer if waiting on card
-    const timer1 = setTimeout(() => {
-      setTxStep("waiting_card");
-    }, 1200);
-
     return () => {
-      clearTimeout(timer1);
+      cancelled = true;
     };
-  }, [isOpen, totalVes, facturaNumero, config]);
+  }, [isOpen, totalVes, facturaNumero, clienteRif, clienteNombre, config.ip, config.puerto, config.protocolo]);
 
   // Countdown timer for timeout
   useEffect(() => {
@@ -133,7 +175,7 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
         if (prev <= 1) {
           clearInterval(interval);
           setTxStep("declined");
-          setErrorMessage("Tiempo de espera agotado. El cliente no presentó la tarjeta en el WizarPOS Q2.");
+          setErrorMessage("Tiempo de espera agotado. El cliente no presentó la tarjeta en el terminal SmartPOS.");
           return 0;
         }
         return prev - 1;
@@ -144,6 +186,8 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
   }, [isOpen, txStep]);
 
   if (!isOpen) return null;
+
+  const modelPrefix = (config.modelo || "PAX_A920").split("_")[0];
 
   const handleSimulateCardTap = () => {
     setTxStep("processing");
@@ -158,10 +202,10 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
         codigo_aprobacion: generatedAuth,
         referencia: generatedRef,
         lote: generatedLote,
-        terminal: "WQ2-" + config.ip.split(".").slice(-1)[0],
+        terminal: `${modelPrefix}-${config.ip.split(".").slice(-1)[0] || "01"}`,
         tarjeta_ultimos4: generatedCard,
         tipo_tarjeta: "Débito Maestro / Contactless",
-        banco_emisor: "BANCO EMISOR SUDEBAN",
+        banco_emisor: `RED ${config.switchRed || config.protocolo || "SUDEBAN"}`,
         monto_ves: totalVes,
         fecha_hora: new Date().toLocaleTimeString("es-VE"),
         mensaje: "TRANSACCIÓN APROBADA",
@@ -169,7 +213,7 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
 
       setTxResult(result);
       setTxStep("approved");
-    }, 1800);
+    }, 1400);
   };
 
   const handleSimulateDecline = () => {
@@ -191,10 +235,10 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
       codigo_aprobacion: "MANUAL-" + manualRef.slice(-4),
       referencia: manualRef.trim(),
       lote: manualLote.trim() || "001",
-      terminal: "WIZARPOS-Q2",
+      terminal: `${modelPrefix}-MANUAL`,
       tarjeta_ultimos4: "****",
       tipo_tarjeta: "Punto de Venta Bancario",
-      banco_emisor: "Terminal Autónomo",
+      banco_emisor: `Terminal ${config.switchRed || "Autónomo"}`,
       monto_ves: totalVes,
       fecha_hora: new Date().toLocaleTimeString("es-VE"),
       mensaje: "REGISTRO MANUAL CONFIRMADO",
@@ -205,23 +249,32 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
 
   const handleTestConnection = async () => {
     setTestStatus("testing");
-    setTestMessage("Probando conexión a " + config.ip + ":" + config.puerto + "...");
+    setTestMessage("Probando conexión TCP a " + config.ip + ":" + config.puerto + "...");
 
     try {
       const res = await fetch("/api/wizarpos/ping", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ip: config.ip, port: config.puerto }),
+        body: JSON.stringify({
+          ip: config.ip,
+          port: config.puerto,
+          modelo: config.modelo,
+          switchRed: config.switchRed,
+        }),
       });
       const data = await res.json();
 
       if (data.reachable) {
+        setLanReachable(true);
         setTestStatus("success");
-        setTestMessage("¡Terminal WizarPOS Q2 detectado y respondiendo en la red local!");
+        setTestMessage(
+          `¡Terminal SmartPOS detectado en la red LAN (${config.ip}:${config.puerto})! Latencia: ${data.latencyMs ?? 1}ms.`
+        );
       } else {
+        setLanReachable(false);
         setTestStatus("warning");
         setTestMessage(
-          "El sistema preparó el canal ECR. (En el contenedor Cloud, las IPs privadas 192.168.x.x responden vía bridge de escritorio o simulación directa)."
+          `Sin respuesta física en ${config.ip}:${config.puerto} (${data.detail || "Host inalcanzable"}). Puede usar Simulación en pantalla o Ingresar Ref. Manual del voucher.`
         );
       }
     } catch {
@@ -240,12 +293,29 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
               <Smartphone className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-white text-sm">WizarPOS Q2 | Integración Bancaria</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <Wifi className="w-3 h-3 animate-pulse" />
-                  ECR Activo
-                </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-white text-sm">
+                  SmartPOS ({(config.modelo || "PAX_A920").replace(/_/g, " ")}) | {config.switchRed || config.protocolo}
+                </h3>
+                {lanReachable === true ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                    <Wifi className="w-3 h-3 animate-pulse text-emerald-400" />
+                    LAN Conectado
+                  </span>
+                ) : lanReachable === false ? (
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40 flex items-center gap-1"
+                    title="El datáfono no respondió en la IP local; operando en modo asistido / simulación"
+                  >
+                    <Radio className="w-3 h-3 text-amber-400" />
+                    Modo Asistido / Simulación
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30 flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    Enlazando...
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400">
                 IP: <span className="font-mono text-slate-300">{config.ip}:{config.puerto}</span> | Factura: <span className="font-mono text-amber-400">{facturaNumero}</span>
@@ -273,7 +343,7 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
             <div className="flex items-center justify-between">
               <div className="font-bold text-slate-200 flex items-center gap-1.5">
                 <Settings className="w-3.5 h-3.5 text-blue-400" />
-                <span>Configuración de Red del WizarPOS Q2</span>
+                <span>Configuración Rápida de Red del SmartPOS</span>
               </div>
               <button
                 onClick={() => setShowConfig(false)}
@@ -307,14 +377,23 @@ export const WizarPosModal: React.FC<WizarPosModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1 text-[11px]">Protocolo:</label>
+                <label className="block text-slate-400 mb-1 text-[11px]">Switch / Protocolo:</label>
                 <select
-                  value={config.protocolo}
-                  onChange={(e) => handleSaveConfig({ ...config, protocolo: e.target.value as any })}
+                  value={config.switchRed || config.protocolo}
+                  onChange={(e) =>
+                    handleSaveConfig({
+                      ...config,
+                      switchRed: e.target.value as any,
+                      protocolo: e.target.value as any,
+                    })
+                  }
                   className="w-full bg-[#12141a] border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs"
                 >
-                  <option value="ECR_JSON">ECR Wi-Fi / TCP JSON</option>
-                  <option value="CREDICARD">Credicard / Mega Soft</option>
+                  <option value="MEGASOFT">Mega Soft (VPOS / VPMS)</option>
+                  <option value="CREDICARD">Red Credicard ECR</option>
+                  <option value="BANCAMIGA">Bancamiga SmartPOS Link</option>
+                  <option value="PLATCO">Red Platco / Banesco</option>
+                  <option value="ECR_JSON">ECR Universal TCP JSON</option>
                   <option value="SIMULADO">Simulación Directa</option>
                 </select>
               </div>

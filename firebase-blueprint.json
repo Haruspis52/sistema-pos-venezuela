@@ -23,8 +23,8 @@
         },
         "edicion_contratada": {
           "type": "string",
-          "enum": ["bodega", "fiscal"],
-          "description": "Edition contracted: bodega ($15) or fiscal ($30)"
+          "enum": ["bodega", "fiscal", "ambas"],
+          "description": "Edition contracted: bodega ($15), fiscal ($30), or ambas"
         },
         "cuota_mensual_usd": {
           "type": "number",
@@ -50,6 +50,10 @@
         "ultimo_contacto": {
           "type": "string",
           "description": "Timestamp of last ping from client POS"
+        },
+        "version_instalada": {
+          "type": "string",
+          "description": "Installed application version on client POS, e.g. 2.7.0"
         },
         "notas": {
           "type": "string",

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { TermsAcceptanceRecord } from "../mockDb";
 import { RemoteClientLicense, SystemUser } from "../types";
+import { APP_VERSION } from "../version";
 
 interface TermsAndPrivacyModalProps {
   isOpen: boolean;
@@ -75,7 +76,7 @@ export const TermsAndPrivacyModal: React.FC<TermsAndPrivacyModalProps> = ({
   const termsText = `================================================================================
 TÉRMINOS Y CONDICIONES GENERALES DE USO Y LICENCIA DE SOFTWARE POS
 SISTEMA DE GESTIÓN COMERCIAL, INVENTARIO Y FACTURACIÓN FISCAL
-Versión: 2.4 (Revisión Legal 2026) • Ámbito: República Bolivariana de Venezuela
+Versión: ${APP_VERSION} (Revisión Legal 2026) • Ámbito: República Bolivariana de Venezuela
 ================================================================================
 
 1. OBJETO Y ÁMBITO DE APLICACIÓN
@@ -92,9 +93,10 @@ El presente contrato rige los términos, condiciones y límites de uso del softw
     a) La exactitud, veracidad y licitud de las ventas, costos y precios registrados.
     b) El correcto reporte de alícuotas del Impuesto al Valor Agregado (IVA general 16% o exenciones según Art. 18 de la Ley de IVA).
     c) La aplicación obligatoria de la alícuota del 3% del Impuesto a las Grandes Transacciones Financieras (IGTF) en cobros efectuados en moneda extranjera o criptoactivos distintos al Petro.
-    d) La emisión legal de Facturas Físicas / Talonarios autorizados conforme a la Providencia Administrativa SNAT/00071 o mediante Máquinas Fiscales homologadas según corresponda a su calificación de contribuyente (ordinario o especial).
+    d) La emisión legal de Facturas Físicas / Talonarios autorizados conforme a la Providencia Administrativa SNAT/2011/00071, mediante Máquinas Fiscales homologadas, o mediante Facturación Digital a través de una Imprenta Digital Autorizada según la Providencia Administrativa SNAT/2024/000102 (Gaceta Oficial N° 43.032 del 19/12/2024), según corresponda a su calificación de contribuyente.
     e) La veracidad del Libro de Ventas y el cálculo del Costo Promedio Ponderado (PMP) exigido por el Artículo 177 del Reglamento de la Ley de Impuesto Sobre la Renta (LISLR).
-3.3. Exoneración del Desarrollador: El desarrollador y proveedor del software quedan exentos de toda responsabilidad por multas, reparos fiscales, clausuras de establecimientos o sanciones derivadas de mala praxis contable, evasión fiscal o alteración fraudulenta de datos por parte de EL COMERCIO.
+3.3. Derogatoria de Homologación de Software (Providencia SNAT/2026/00084): Conforme a la Providencia Administrativa SNAT/2026/00084 (publicada en Gaceta Oficial N° 43.435 del 12 de agosto de 2026), quedó expresamente derogada la Providencia Administrativa SNAT/2024/000121. En consecuencia, la comercialización y uso del presente software de gestión administrativa e inventario no requiere procedimiento especial previo de homologación de software ante el SENIAT, manteniéndose plenamente vigentes las obligaciones del contribuyente bajo las Providencias SNAT/2011/00071 y SNAT/2024/000102.
+3.4. Exoneración del Desarrollador: El desarrollador y proveedor del software quedan exentos de toda responsabilidad por multas, reparos fiscales, clausuras de establecimientos o sanciones derivadas de mala praxis contable, evasión fiscal o alteración fraudulenta de datos por parte de EL COMERCIO.
 
 4. RÉGIMEN CAMBIARIO Y TASA OFICIAL BCV
 4.1. Transparencia Cambiaria: Conforme a las directrices del Banco Central de Venezuela (BCV) y normativas de protección al consumidor, todo precio fijado en divisas (USD / EUR) debe ser liquidable en Bolívares (VES) a la tasa oficial de la fecha valor de la operación.
@@ -113,7 +115,7 @@ Todos los derechos de autor, código fuente, algoritmos, interfaces visuales y d
   const privacyText = `================================================================================
 POLÍTICA DE PRIVACIDAD, CONFIDENCIALIDAD Y TRATAMIENTO DE DATOS
 SISTEMA DE GESTIÓN COMERCIAL, INVENTARIO Y FACTURACIÓN FISCAL
-Versión: 2.4 (Revisión 2026) • Ámbito: Comercial y Protección al Consumidor
+Versión: ${APP_VERSION} (Revisión 2026) • Ámbito: Comercial y Protección al Consumidor
 ================================================================================
 
 1. PRINCIPIO FUNDAMENTAL: SOBERANÍA TOTAL DEL DATO COMERCIAL
@@ -122,7 +124,7 @@ Nos tomamos la privacidad de su negocio con el más estricto rigor profesional. 
 1.2. No Comercialización: Bajo NINGUNA circunstancia vendemos, alquilamos, cedemos ni compartimos sus cifras de facturación, márgenes comerciales o datos de clientes con competidores, empresas de publicidad ni terceros. Su negocio le pertenece a usted.
 
 2. TIPOS DE DATOS TRATADOS Y FINALIDAD
-2.1. Datos de Facturación del Cliente Final: Cédula o RIF, Nombres o Razón Social, Teléfono y Dirección fiscal. Finalidad: Cumplimiento de la Providencia Administrativa SNAT/00071 del SENIAT y emisión de comprobantes de venta.
+2.1. Datos de Facturación del Cliente Final: Cédula o RIF, Nombres o Razón Social, Teléfono y Dirección fiscal. Finalidad: Cumplimiento de las Providencias Administrativas SNAT/2011/00071 y SNAT/2024/000102 del SENIAT y emisión de comprobantes de venta.
 2.2. Datos de Operadores del Sistema: Nombres de cajeros, supervisores y administradores, roles asignados y código PIN cifrado de autenticación. Finalidad: Auditoría interna, arqueo de caja y control de acceso basado en roles (RBAC).
 2.3. Libreta de Fiados: Nombres de clientes frecuentes, números telefónicos y registro de saldos deudores. Finalidad: Gestión privada de cobros del establecimiento.
 
@@ -147,26 +149,37 @@ Para proteger la privacidad de sus costos comerciales frente a empleados y clien
 6.2. Eliminación Completa: Si EL COMERCIO decide dejar de utilizar el software, puede utilizar la herramienta de "Restablecimiento / Borrado Seguro" para eliminar definitivamente cualquier rastro de información de los dispositivos locales.`;
 
   const fiscalNoticeText = `================================================================================
-AVISO FISCAL Y LEGAL SENIAT • RÉGIMEN TRIBUTARIO VENEZOLANO
+AVISO FISCAL Y LEGAL SENIAT • RÉGIMEN TRIBUTARIO VENEZOLANO (ACTUALIZADO 2026)
 DELIMITACIÓN DE RESPONSABILIDADES Y CUMPLIMIENTO NORMATIVO
 ================================================================================
 
-1. PROVIDENCIA ADMINISTRATIVA SNAT/2011/00071 (RÉGIMEN DE EMISIÓN DE FACTURAS)
-El presente software está estructurado para emitir comprobantes de venta y formatos digitales que cumplen con la totalidad de los datos exigidos por el artículo 13 de la Providencia 00071:
+1. PROVIDENCIA ADMINISTRATIVA SNAT/2011/00071 (RÉGIMEN GENERAL DE FACTURACIÓN)
+El presente software está estructurado para emitir comprobantes de venta y formatos que cumplen con los datos exigidos por el artículo 13 de la Providencia 00071:
 - Razón Social, RIF, Domicilio Fiscal y Número de Teléfono del Emisor.
 - Identificación del Adquirente: Nombres/Razón Social y RIF o Cédula de Identidad.
 - Número de Factura consecutivo y Número de Control correlativo asignado.
 - Especificación de la cantidad, descripción, precio unitario y alícuota aplicable (16% o Exento).
 - Total facturado desglosado en Base Imponible, Exento, IVA y total a pagar.
-* ADVERTENCIA LEGAL: Si su empresa es calificada como Sujeto Pasivo Especial ("Contribuyente Especial") o la normativa le exige el uso obligatorio de Máquina Fiscal con Memoria de Auditoría homologada por el SENIAT, este sistema opera como soporte administrativo interno y control de inventario, debiendo canalizarse la impresión fiscal por los dispositivos homologados correspondientes.
+* ADVERTENCIA LEGAL: Si su empresa está obligada al uso de Máquina Fiscal homologada por el SENIAT en ventas presenciales, el Modo Bodega / Control Interno opera como auxiliar administrativo e inventario, debiendo emitirse la factura fiscal por su Máquina Fiscal o medio autorizado.
 
-2. LEY DE IMPUESTO A LAS GRANDES TRANSACCIONES FINANCIERAS (IGTF - 3%)
-Conforme a la reforma de la Ley de IGTF, todo pago recibido en divisas extranjeras en efectivo o criptomonedas no emitidas por la República conlleva la percepción de la alícuota del 3%. El sistema calcula y desglosa automáticamente este renglón tanto en USD como en su equivalente en Bolívares a la tasa oficial BCV. Es obligación del cajero registrar el método de pago fidedigno.
+2. PROVIDENCIA ADMINISTRATIVA SNAT/2024/000102 (FACTURACIÓN DIGITAL E IMPRENTAS AUTORIZADAS)
+Publicada en Gaceta Oficial N° 43.032 del 19/12/2024 (derogando la Providencia SNAT/2014/0032):
+- Regula la emisión de facturas y documentos fiscales por medios electrónicos/digitales.
+- Es obligatoria para contribuyentes que operen exclusivamente por medios electrónicos (e-commerce, apps, redes sociales) y para comercios físicos con máquina fiscal que además realicen ventas por canales digitales (por dichas ventas online).
+- El sistema incorpora un Conector para Imprenta Digital Autorizada SENIAT (The Factory HKA, Unidigital, Serdimpre o API REST estándar) para la asignación telemática del Número de Control y resguardo fiscal.
 
-3. REGLAMENTO DE LA LEY DE IMPUESTO SOBRE LA RENTA (ART. 177 - KARDEX PMP)
-El sistema implementa el método de valoración de inventarios por "Costo Promedio Ponderado" (PMP) exigido por el Art. 177 del Reglamento de la LISLR. El Kardex registra cronológicamente cada entrada, salida, costo unitario resultante y saldo en existencia, garantizando trazabilidad auditable en caso de fiscalización.
+3. DEROGATORIA DE LA PROVIDENCIA 000121 MEDIANTE PROVIDENCIA SNAT/2026/00084
+Conforme a la Providencia Administrativa SNAT/2026/00084 (Gaceta Oficial N° 43.435 del 12 de agosto de 2026), el SENIAT derogó expresamente la Providencia Administrativa SNAT/2024/000121.
+- En virtud de esta derogatoria, los proveedores y desarrolladores de software administrativo, inventario y punto de venta NO están sujetos al trámite previo de homologación y registro de software que exigía la extinta Providencia 000121.
+- La validez de los documentos fiscales emitidos por el contribuyente se rige por las Providencias SNAT/2011/00071 (medios físicos/máquinas fiscales) y SNAT/2024/000102 (facturación digital vía Imprenta Digital Autorizada).
 
-4. CUMPLIMIENTO CAMBIARIO (BANCO CENTRAL DE VENEZUELA - BCV)
+4. LEY DE IMPUESTO A LAS GRANDES TRANSACCIONES FINANCIERAS (IGTF - 3%)
+Conforme a la reforma de la Ley de IGTF, todo pago recibido en divisas extranjeras en efectivo o criptomonedas no emitidas por la República conlleva la percepción de la alícuota del 3%. El sistema calcula y desglosa automáticamente este renglón tanto en USD como en su equivalente en Bolívares a la tasa oficial BCV.
+
+5. REGLAMENTO DE LA LEY DE IMPUESTO SOBRE LA RENTA (ART. 177 - KARDEX PMP)
+El sistema implementa el método de valoración de inventarios por "Costo Promedio Ponderado" (PMP) exigido por el Art. 177 del Reglamento de la LISLR. El Kardex registra cronológicamente cada entrada, salida, costo unitario resultante y saldo en existencia, garantizando trazabilidad auditable.
+
+6. CUMPLIMIENTO CAMBIARIO (BANCO CENTRAL DE VENEZUELA - BCV)
 De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Central de Venezuela, está prohibido el cobro o cotización en divisas utilizando tasas no oficiales o paralelas. El software integra enlace a la API oficial del BCV con indicación de la "Fecha Valor".`;
 
   return (
@@ -185,11 +198,11 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
                 </h2>
                 <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700/60 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  Versión Oficial v2.4 (2026)
+                  Versión Oficial v{APP_VERSION} (2026)
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Marco jurídico para Software de Punto de Venta, Inventarios, SENIAT, BCV y Protección de Datos
+                Marco jurídico actualizado: SNAT/2011/00071, SNAT/2024/000102 y Derogatoria SNAT/2026/00084
               </p>
             </div>
           </div>
@@ -341,9 +354,9 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-blue-950/30 border border-blue-500/40 rounded-2xl p-4 flex items-start gap-3.5">
                 <Shield className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                 <div className="space-y-1 text-xs">
-                  <h3 className="font-bold text-white text-sm">Resumen Ejecutivo de la Licencia POS</h3>
+                  <h3 className="font-bold text-white text-sm">Resumen Ejecutivo de la Licencia POS (Actualizado Agosto 2026)</h3>
                   <p className="text-slate-300 text-[11px] leading-relaxed">
-                    Este software se entrega para uso comercial en el establecimiento designado. Al tratarse de un sistema con capacidades de cálculo tributario (IVA, IGTF 3%, PMP) y conexión con periféricos (SmartPOS, impresoras fiscales), el contribuyente es el responsable exclusivo de sus declaraciones fiscales ante el SENIAT.
+                    Este software se entrega para uso comercial en el establecimiento designado. Conforme a la <strong>Providencia SNAT/2026/00084</strong> (que derogó la SNAT/2024/000121), la comercialización de sistemas administrativos e inventario no requiere homologación previa de software ante el SENIAT. El contribuyente es responsable de emitir sus facturas según la <strong>SNAT/2011/00071</strong> o <strong>SNAT/2024/000102</strong>.
                   </p>
                 </div>
               </div>
@@ -355,7 +368,7 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
                   <h4>Objeto y Alcance de la Licencia</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed pl-8">
-                  Se concede a <strong>{license?.nombre_negocio || "EL COMERCIO"}</strong> una licencia no exclusiva e intransferible para instalar y operar el software en sus puntos de venta autorizados. El software funciona bajo arquitectura híbrida: opera 100% de manera autónoma local mediante motor transaccional SQLite3 sin requerir conexión permanente a internet para registrar ventas, calcular vueltos y alimentar el inventario.
+                  Se concede a <strong>{license?.nombre_negocio || "EL COMERCIO"}</strong> una licencia no exclusiva e intransferible para instalar y operar el software en sus puntos de venta autorizados. El software funciona bajo arquitectura híbrida: opera 100% de manera autónoma local sin requerir conexión permanente a internet para registrar ventas, calcular vueltos y alimentar el inventario.
                 </p>
               </div>
 
@@ -363,10 +376,10 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
                   <span className="w-6 h-6 rounded-full bg-amber-600/30 text-amber-400 flex items-center justify-center text-xs font-mono font-bold">2</span>
-                  <h4>Exoneración y Responsabilidad Fiscal ante el SENIAT</h4>
+                  <h4>Marco SENIAT: SNAT/2011/00071, SNAT/2024/000102 y Derogatoria SNAT/2026/00084</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed pl-8">
-                  El software provee fórmulas estandarizadas de cálculo según la <strong>Providencia SNAT/00071</strong>, la <strong>Ley de IVA</strong> (16% y Exentos), la <strong>Ley de IGTF (3%)</strong> y el <strong>Art. 177 de la LISLR (Kardex PMP)</strong>. Sin embargo, EL COMERCIO asume plena y total responsabilidad legal, administrativa y penal por la veracidad de los datos contables emitidos, correlativos fiscales utilizados y declaraciones presentadas ante la Administración Tributaria. El desarrollador no será responsable por sanciones, clausuras o multas derivadas del mal uso del sistema.
+                  El software provee fórmulas estandarizadas según la <strong>Providencia SNAT/2011/00071</strong>, conector de Imprenta Digital Autorizada bajo la <strong>Providencia SNAT/2024/000102</strong>, la <strong>Ley de IVA</strong> (16% y Exentos), la <strong>Ley de IGTF (3%)</strong> y el <strong>Art. 177 de la LISLR (Kardex PMP)</strong>. Conforme a la <strong>Providencia SNAT/2026/00084</strong> (Gaceta Oficial N° 43.435 del 12/08/2026), quedó derogada la Providencia SNAT/2024/000121. EL COMERCIO asume plena y total responsabilidad legal, administrativa y penal por la veracidad de los datos contables emitidos y declaraciones presentadas ante la Administración Tributaria.
                 </p>
               </div>
 
@@ -497,9 +510,9 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-2xl p-4 flex items-start gap-3.5">
                 <Building2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                 <div className="space-y-1 text-xs">
-                  <h3 className="font-bold text-white text-sm">Guía de Cumplimiento Tributario y Cambiario</h3>
+                  <h3 className="font-bold text-white text-sm">Guía de Cumplimiento Tributario y Cambiario (Actualizado 2026)</h3>
                   <p className="text-slate-300 text-[11px] leading-relaxed">
-                    Directrices de auditoría fiscal venezolana: Providencia Administrativa SNAT/00071, Ley de Impuesto a las Grandes Transacciones Financieras (IGTF 3%), Art. 177 LISLR y Tasa Oficial BCV.
+                    Directrices de auditoría fiscal venezolana: Providencia SNAT/2011/00071, Facturación Digital SNAT/2024/000102, Derogatoria de Homologación SNAT/2026/00084, Ley IGTF (3%), Art. 177 LISLR y Tasa Oficial BCV.
                   </p>
                 </div>
               </div>
@@ -508,30 +521,40 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
                 <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                   <div className="flex items-center gap-2 font-bold text-emerald-400 text-sm">
                     <CheckCircle2 className="w-4 h-4" />
-                    <h4>Providencia SNAT/00071</h4>
+                    <h4>Providencia SNAT/2011/00071</h4>
                   </div>
                   <p className="text-slate-400 text-xs leading-relaxed">
-                    El sistema emite facturas con los requisitos exigidos por el artículo 13: RIF/Cédula del comprador, denominación del emisor, correlativo de factura y control, fecha y hora exacta, alícuotas 16% y exenciones, y monto total a pagar.
+                    Emisión de comprobantes con todos los requisitos del Art. 13: RIF/Cédula del adquirente, datos del emisor, número de factura y control, fecha/hora, alícuotas 16% y exentos, y desglose en Bolívares y divisas.
                   </p>
                 </div>
 
-                <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-blue-400 text-sm">
+                <div className="bg-[#161822] border border-emerald-700/40 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-emerald-300 text-sm">
                     <CheckCircle2 className="w-4 h-4" />
-                    <h4>Alícuota IGTF 3%</h4>
+                    <h4>Facturación Digital SNAT/2024/000102</h4>
                   </div>
                   <p className="text-slate-400 text-xs leading-relaxed">
-                    Al cobrar en divisas en efectivo o criptoactivos, el software añade automáticamente el 3% de IGTF y desglosa la retención en Bolívares y Dólares, facilitando el reporte para la declaración quincenal del contribuyente especial.
+                    Gaceta Oficial N° 43.032 (19/12/2024): Regula la emisión digital de facturas a través de una <strong>Imprenta Digital Autorizada</strong> (ej. The Factory HKA, Unidigital, Serdimpre) para negocios online o con canales electrónicos.
+                  </p>
+                </div>
+
+                <div className="bg-[#161822] border border-blue-700/40 rounded-2xl p-4 space-y-2 md:col-span-2">
+                  <div className="flex items-center gap-2 font-bold text-blue-400 text-sm">
+                    <ShieldCheck className="w-4 h-4" />
+                    <h4>Providencia SNAT/2026/00084 (Derogatoria de la SNAT/2024/000121)</h4>
+                  </div>
+                  <p className="text-slate-300 text-xs leading-relaxed">
+                    Publicada en <strong>Gaceta Oficial N° 43.435 del 12 de agosto de 2026</strong>, esta providencia <strong>derogó expresamente la Providencia SNAT/2024/000121</strong>. Gracias a ello, los desarrolladores y proveedores de software administrativo/POS ya no están obligados a tramitar el registro u homologación previa del software ante el SENIAT que exigía la norma derogada, manteniéndose plenamente vigentes las Providencias <strong>00071</strong> y <strong>000102</strong>.
                   </p>
                 </div>
 
                 <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                   <div className="flex items-center gap-2 font-bold text-amber-400 text-sm">
                     <CheckCircle2 className="w-4 h-4" />
-                    <h4>Reglamento LISLR Art. 177</h4>
+                    <h4>Alícuota IGTF 3% y LISLR Art. 177</h4>
                   </div>
                   <p className="text-slate-400 text-xs leading-relaxed">
-                    Exige a todo establecimiento comercial mantener un libro de inventario por Costo Promedio Ponderado (PMP). El Kardex registra cronológicamente cada compra y venta, generando un registro auditable e inmutable.
+                    Cálculo automático del 3% de IGTF en pagos en divisas/criptoactivos (incluyendo Pagos Mixtos) y libro Kardex por Costo Promedio Ponderado (PMP) inmutable conforme al Art. 177 del Reglamento de la LISLR.
                   </p>
                 </div>
 
@@ -583,7 +606,7 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
 
                   <div>
                     <span className="text-slate-500 text-[10px] block uppercase">Versión del Marco Legal:</span>
-                    <span className="text-emerald-400 font-bold">v2.4 - Leyes Fiscales 2026</span>
+                    <span className="text-emerald-400 font-bold">v{APP_VERSION} - Leyes Fiscales 2026</span>
                   </div>
 
                   <div>
@@ -638,10 +661,11 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
         <div className="bg-[#141620] px-6 py-3.5 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="text-[11px] text-slate-400 text-center sm:text-left">
             <span>Marco Regulatorio: </span>
-            <strong className="text-slate-300 font-semibold">SENIAT SNAT/00071</strong> •{" "}
+            <strong className="text-slate-300 font-semibold">SNAT/2011/00071</strong> •{" "}
+            <strong className="text-emerald-400 font-semibold">SNAT/2024/000102</strong> •{" "}
+            <strong className="text-blue-400 font-semibold">SNAT/2026/00084</strong> •{" "}
             <strong className="text-slate-300 font-semibold">LISLR Art. 177</strong> •{" "}
-            <strong className="text-slate-300 font-semibold">BCV Oficial</strong> •{" "}
-            <strong className="text-slate-300 font-semibold">PCI-DSS Compliant</strong>
+            <strong className="text-slate-300 font-semibold">BCV Oficial</strong>
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
