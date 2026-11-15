@@ -93,30 +93,85 @@ export const SystemUpdateModal: React.FC<SystemUpdateModalProps> = ({
     }
   };
 
+  const waitForFrontendReadyAndReload = async () => {
+    try {
+      sessionStorage.setItem("pos_updating_in_progress", "1");
+    } catch {}
+
+    // 1. Limpiar posibles cachés del navegador (Cache Storage API)
+    try {
+      if ("caches" in window) {
+        const keys = await window.caches.keys();
+        await Promise.all(keys.map((k) => window.caches.delete(k)));
+      }
+    } catch {}
+
+    // 2. Verificar que Vite / Express hayan terminado de compilar los módulos de entrada
+    for (let attempt = 0; attempt < 12; attempt++) {
+      try {
+        const readyRes = await fetch(`/api/system/ready?t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+        if (readyRes.ok) {
+          const readyData = await readyRes.json();
+          if (readyData && readyData.ready) {
+            // Pre-calentar también la petición HTTP del módulo raíz en el navegador sin usar caché
+            await fetch(`/src/main.tsx?t=${Date.now()}`, { cache: "no-store" }).catch(() => {});
+            break;
+          }
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 600));
+    }
+
+    // 3. Navegar con parámetro anti-caché (se limpia automáticamente al montar React)
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("updated", String(Date.now()));
+    window.location.replace(nextUrl.toString());
+  };
+
   const handleApplyUpdate = async () => {
     setIsApplyingUpdate(true);
-    setUpdateLog("Ejecutando 'git pull origin main' y compilando la aplicación en la máquina local...");
+    setUpdateLog("Descargando archivos actualizados desde GitHub y sincronizando módulos en la máquina local...");
 
     try {
-      const res = await fetch("/api/system/apply-git-update", { method: "POST" });
+      sessionStorage.setItem("pos_updating_in_progress", "1");
+    } catch {}
+
+    try {
+      const res = await fetch("/api/system/apply-git-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo: githubRepo.trim() }),
+      });
       const data = await res.json();
 
       if (data.success) {
-        setUpdateLog(`[ÉXITO] ${data.message}\n\nDetalles del proceso:\n${data.output || "Sin salida adicional."}`);
+        setUpdateLog(
+          `[ÉXITO] ${data.message}\n\nDetalles del proceso:\n${data.output || "Sin salida adicional."}\n\n` +
+          `Verificando compilación de la interfaz y recargando automáticamente...`
+        );
         if (showToast) {
-          showToast("🎉 ¡Sistema actualizado con éxito! Recargando en 3 segundos...");
+          showToast("🎉 ¡Sistema actualizado con éxito! Preparando interfaz y recargando...");
         }
         setTimeout(() => {
-          window.location.reload();
-        }, 3500);
+          waitForFrontendReadyAndReload();
+        }, 1200);
       } else {
+        try {
+          sessionStorage.removeItem("pos_updating_in_progress");
+        } catch {}
         setUpdateLog(
-          `[AVISO] ${data.message || "No se pudo actualizar vía Git en este entorno."}\n\n` +
+          `[AVISO] ${data.message || "No se pudo actualizar en este entorno."}\n\n` +
           `Motivo: ${data.error || "Repositorio de desarrollo"}\n\n` +
           `Instrucción alternativa para la computadora del cliente:\n${data.manualInstruction || "Ejecuta: scripts\\actualizar_sistema.bat"}`
         );
       }
     } catch (e: any) {
+      try {
+        sessionStorage.removeItem("pos_updating_in_progress");
+      } catch {}
       setUpdateLog(`[ERROR] Fallo de llamada al servidor: ${e?.message}`);
     } finally {
       setIsApplyingUpdate(false);

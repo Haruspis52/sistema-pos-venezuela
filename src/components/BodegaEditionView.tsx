@@ -78,6 +78,8 @@ interface BodegaEditionViewProps {
   onTogglePosMode?: (mode: PosOperationalMode) => void;
   currentUser?: SystemUser;
   onUserChange?: (user: SystemUser) => void;
+  onOpenCatalog?: () => void;
+  onOpenInvoiceAi?: () => void;
 }
 
 export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
@@ -91,6 +93,8 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
   onTogglePosMode,
   currentUser,
   onUserChange,
+  onOpenCatalog,
+  onOpenInvoiceAi,
 }) => {
   // Subtabs within Bodega edition
   const [bodegaTab, setBodegaTab] = useState<
@@ -1349,123 +1353,77 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
   }, [sales, bcvRate]);
 
   return (
-    <div className="space-y-4">
-      {/* Top Bodega Navigation Header */}
-      <div className="bg-[#12141a] border border-amber-500/30 rounded-2xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-lg shadow-amber-950/20">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md">
-            <Store className="w-5 h-5" />
+    <div className="space-y-3">
+      {/* Compact Single-Line Bodega Navigation Bar (Point 1 & Point 2) */}
+      <div className="bg-[#12141a] border border-amber-500/25 rounded-2xl px-3.5 py-2 flex flex-wrap items-center justify-between gap-2.5 shadow-md">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-sm shrink-0">
+            <Store className="w-4 h-4" />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-base font-bold text-white flex items-center gap-1.5">
-                Edición Bodega & Comercio Comunitario
-              </h2>
-              {posMode === "inventory_only" ? (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-amber-400" />
-                  <span>Modo: Solo Inventario & Total</span>
-                </span>
-              ) : (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40 flex items-center gap-1">
-                  <Wifi className="w-3 h-3 text-blue-400" />
-                  <span>Modo: SmartPOS Wi-Fi</span>
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400">
-              {posMode === "inventory_only"
-                ? "Operación autónoma sin datáfono: Precios en USD, conversión BCV automática y descuento inmediato de stock."
-                : "Operación con datáfono Android: Envío de monto por Wi-Fi/IP y cierre automático de inventario."}
-            </p>
-          </div>
+          <h2 className="text-sm font-bold text-white truncate">
+            Edición Bodega
+          </h2>
         </div>
 
-        {/* Bodega Sub-tabs & Mode Switcher */}
-        <div className="flex flex-wrap items-center gap-2">
-          {onTogglePosMode && (
-            <button
-              onClick={() => onTogglePosMode(posMode === "inventory_only" ? "smartpos" : "inventory_only")}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all ${
-                posMode === "inventory_only"
-                  ? "bg-amber-950/40 border-amber-500/50 text-amber-300 hover:bg-amber-900/50"
-                  : "bg-blue-950/40 border-blue-500/50 text-blue-300 hover:bg-blue-900/50"
-              }`}
-              title="Cambiar entre modo Solo Inventario y SmartPOS"
-            >
-              {posMode === "inventory_only" ? (
-                <>
-                  <Smartphone className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="hidden sm:inline">Cambiar a</span> SmartPOS
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Cambiar a</span> Solo Inventario
-                </>
-              )}
-            </button>
-          )}
+        {/* Bodega Sub-tabs */}
+        <div className="flex flex-wrap items-center gap-1 bg-[#0e1017] p-1 rounded-xl border border-slate-800">
+          <button
+            onClick={() => setBodegaTab("mostrador")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              bodegaTab === "mostrador"
+                ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            <span>Mostrador</span>
+            {cart.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-amber-300 text-[10px] font-mono">
+                {cart.length}
+              </span>
+            )}
+          </button>
 
-          <div className="flex flex-wrap items-center gap-1 bg-[#0e1017] p-1 rounded-xl border border-slate-800">
-            <button
-              onClick={() => setBodegaTab("mostrador")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                bodegaTab === "mostrador"
-                  ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              <span>Mostrador</span>
-              {cart.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-amber-300 text-[10px] font-mono">
-                  {cart.length}
-                </span>
-              )}
-            </button>
+          <button
+            onClick={() => setBodegaTab("fiados")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              bodegaTab === "fiados"
+                ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Libreta</span>
+            {totalFiadosPendingUsd > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-950 text-amber-300 text-[10px] font-mono">
+                ${totalFiadosPendingUsd.toFixed(1)}
+              </span>
+            )}
+          </button>
 
-            <button
-              onClick={() => setBodegaTab("fiados")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                bodegaTab === "fiados"
-                  ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Libreta</span>
-              {totalFiadosPendingUsd > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-950 text-amber-300 text-[10px] font-mono">
-                  ${totalFiadosPendingUsd.toFixed(1)}
-                </span>
-              )}
-            </button>
+          <button
+            onClick={() => setBodegaTab("caja")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              bodegaTab === "caja"
+                ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            <span>Caja</span>
+          </button>
 
-            <button
-              onClick={() => setBodegaTab("caja")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                bodegaTab === "caja"
-                  ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Calculator className="w-3.5 h-3.5" />
-              <span>Caja</span>
-            </button>
-
-            <button
-              onClick={() => setBodegaTab("etiquetas")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-                bodegaTab === "etiquetas"
-                  ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span>Anaquel</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setBodegaTab("etiquetas")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              bodegaTab === "etiquetas"
+                ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>Anaquel</span>
+          </button>
         </div>
       </div>
 
@@ -1476,7 +1434,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Left: Product Catalog & Quick Search (7 cols) */}
           <div className="lg:col-span-7 min-w-0 space-y-3">
-            {/* Search & Barcode Input */}
+            {/* Search & Barcode Input (Point 1: Removed duplicated BCV pill) */}
             <div className="bg-[#14161f] border border-slate-800 p-3 rounded-2xl flex flex-wrap items-center gap-2 overflow-hidden">
               <div className="relative flex-1 min-w-[220px]">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1510,14 +1468,6 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-medium whitespace-nowrap shrink-0" title="Escaneo global activado: Pase cualquier producto por el lector sin necesidad de hacer clic en el buscador">
                   <Barcode className="w-3.5 h-3.5 animate-pulse shrink-0" />
                   <span>Lector Activo</span>
-                </div>
-
-                {/* Tasa BCV Pill */}
-                <div className="bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-xl whitespace-nowrap shrink-0 text-right">
-                  <div className="text-[10px] text-amber-300 font-semibold leading-tight">Tasa BCV del Día</div>
-                  <div className="text-xs font-mono font-bold text-white leading-tight">
-                    Bs. {bcvRate.toFixed(2)}
-                  </div>
                 </div>
               </div>
             </div>
@@ -1631,11 +1581,72 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               </div>
             </div>
 
-            {/* Products Grid or Resizable Table */}
-            {mostradorViewMode === "grid" ? (
+            {/* Products Grid, Onboarding Empty State (Point 4), or Resizable Table */}
+            {mostradorPagination.totalItems === 0 ? (
+              <div className="bg-[#14161f] border border-dashed border-slate-700/80 rounded-2xl p-8 text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto shadow-inner">
+                  <Store className="w-7 h-7" />
+                </div>
+                {products.length === 0 ? (
+                  <>
+                    <div className="space-y-1 max-w-md mx-auto">
+                      <h3 className="text-sm sm:text-base font-extrabold text-white">
+                        Tu catálogo de productos está vacío
+                      </h3>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Registra tu primer artículo o importa tu lista de precios desde un archivo Excel / CSV para empezar a vender en el mostrador.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                      {onOpenCatalog && (
+                        <button
+                          type="button"
+                          onClick={onOpenCatalog}
+                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-all cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Agregar o Importar Productos (Catálogo)</span>
+                        </button>
+                      )}
+                      {onOpenInvoiceAi && (
+                        <button
+                          type="button"
+                          onClick={onOpenInvoiceAi}
+                          className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Cargar desde Factura con IA</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1 max-w-sm mx-auto">
+                      <h3 className="text-sm font-bold text-white">
+                        No se encontraron productos para esta búsqueda
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Intenta con otro nombre, código de barras o selecciona la categoría &quot;TODAS&quot;.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchProduct("");
+                        setSelectedCategory("TODAS");
+                      }}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+                    >
+                      Limpiar filtros de búsqueda
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : mostradorViewMode === "grid" ? (
               <div className="space-y-2">
                 <div
-                  className={`grid gap-2.5 max-h-[580px] overflow-y-auto pr-1 overscroll-auto ${
+                  className={`grid gap-2.5 max-h-[620px] overflow-y-auto pr-1 overscroll-auto ${
                     mostradorGridCols === 2
                       ? "grid-cols-1 sm:grid-cols-2"
                       : mostradorGridCols === 4
@@ -1707,7 +1718,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   controller={mostradorColResizer}
                   title="Configurar Tamaño de Columnas • Lista de Mostrador"
                 />
-                <div className="overflow-x-auto max-h-[540px] overflow-y-auto">
+                <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
                   <table
                     data-resizable-table={mostradorColResizer.tableId}
                     className="w-full text-left text-xs text-slate-300"
@@ -1819,10 +1830,10 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
             )}
           </div>
 
-          {/* Right: Mostrador Cart & Checkout Panel (5 cols) */}
-          <div className="lg:col-span-5 min-w-0 bg-[#12141a] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xl min-h-[500px]">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          {/* Right: Sticky Mostrador Cart & Checkout Panel (Point 5) */}
+          <div className="lg:col-span-5 min-w-0 lg:sticky lg:top-20 bg-[#12141a] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xl min-h-[460px] lg:max-h-[calc(100vh-6rem)]">
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
                 <div className="flex items-center gap-2">
                   <ShoppingCart className="w-4 h-4 text-amber-400" />
                   <span className="text-sm font-bold text-white">Canasta de Venta</span>
@@ -1844,9 +1855,9 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               </div>
 
               {/* Cart Items List */}
-              <div className="divide-y divide-slate-800/60 max-h-[280px] overflow-y-auto pr-1 my-2">
+              <div className="divide-y divide-slate-800/60 flex-1 overflow-y-auto pr-1 my-2 min-h-[160px] max-h-[320px]">
                 {cart.length === 0 ? (
-                  <div className="text-center py-12 text-slate-500 text-xs">
+                  <div className="text-center py-10 text-slate-500 text-xs">
                     <Store className="w-8 h-8 mx-auto mb-2 opacity-30 text-amber-400" />
                     Haz clic en un producto o escanea un código para empezar a vender.
                   </div>

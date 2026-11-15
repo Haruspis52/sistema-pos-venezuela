@@ -22,7 +22,53 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   </head>
   <body class="bg-[#121417] text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
-    <div id="root"></div>
+    <div id="root">
+      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#121417;color:#e2e8f0;font-family:'Plus Jakarta Sans',system-ui,sans-serif;gap:12px;">
+        <div style="width:40px;height:40px;border:3px solid rgba(59,130,246,0.25);border-top-color:#3b82f6;border-radius:9999px;animation:posSpin 0.8s linear infinite;"></div>
+        <div style="font-size:13px;font-weight:700;letter-spacing:0.04em;color:#94a3b8;">Iniciando FaradayPOS...</div>
+      </div>
+      <style>@keyframes posSpin { to { transform: rotate(360deg); } }</style>
+    </div>
+    <script>
+      (function () {
+        var triggerSafeReload = function (reason) {
+          try {
+            var lastReload = parseInt(sessionStorage.getItem("pos_auto_reload_ts") || "0", 10);
+            var now = Date.now();
+            if (now - lastReload < 8000) return;
+            sessionStorage.setItem("pos_auto_reload_ts", String(now));
+            console.warn("[FaradayPOS Auto-Recovery] Recargando tras actualizacion (" + reason + ")...");
+            var url = new URL(window.location.href);
+            url.searchParams.set("updated", String(now));
+            window.location.replace(url.toString());
+          } catch (e) {
+            window.location.reload();
+          }
+        };
+
+        window.addEventListener("vite:preloadError", function (event) {
+          event.preventDefault();
+          triggerSafeReload("vite:preloadError");
+        });
+
+        window.addEventListener("error", function (event) {
+          var msg = String((event && event.message) || "");
+          if (
+            msg.indexOf("Failed to fetch dynamically imported module") !== -1 ||
+            msg.indexOf("Importing a module script failed") !== -1 ||
+            msg.indexOf("Outdated Optimize Dep") !== -1
+          ) {
+            triggerSafeReload("moduleLoadError");
+          }
+        }, true);
+
+        setTimeout(function () {
+          if (!window.__POS_REACT_MOUNTED__) {
+            triggerSafeReload("mountWatchdog");
+          }
+        }, 4500);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -74,18 +74,19 @@ export const TermsAndPrivacyModal: React.FC<TermsAndPrivacyModalProps> = ({
   };
 
   const termsText = `================================================================================
-TÉRMINOS Y CONDICIONES GENERALES DE USO Y LICENCIA DE SOFTWARE POS
+TÉRMINOS Y CONDICIONES GENERALES DE USO Y LICENCIA DE SOFTWARE — FARADAYPOS
 SISTEMA DE GESTIÓN COMERCIAL, INVENTARIO Y FACTURACIÓN FISCAL
 Versión: ${APP_VERSION} (Revisión Legal 2026) • Ámbito: República Bolivariana de Venezuela
 ================================================================================
 
 1. OBJETO Y ÁMBITO DE APLICACIÓN
-El presente contrato rige los términos, condiciones y límites de uso del software de Punto de Venta (POS), control de inventarios, libro de ventas y facturación en sus modalidades "Modo Bodega / Venta Rápida" y "Modo Fiscal SENIAT". Al instalar, acceder, operar o registrar transacciones en esta plataforma, el usuario comercial (en lo sucesivo "EL COMERCIO" o "EL USUARIO") declara conocer, entender y aceptar en su totalidad las cláusulas aquí descritas.
+El presente contrato rige los términos, condiciones y límites de uso del software de Punto de Venta (FaradayPOS), control de inventarios, libro de ventas y facturación en sus modalidades "Edición Bodega" y "Edición Fiscal SENIAT" (así como la modalidad combinada "Ambas Ediciones"). Al instalar, acceder, operar o registrar transacciones en esta plataforma, el usuario comercial (en lo sucesivo "EL COMERCIO" o "EL USUARIO") declara conocer, entender y aceptar en su totalidad las cláusulas aquí descritas.
 
-2. NATURALEZA DE LA LICENCIA DE USO
-2.1. Concesión de Licencia: Se otorga a EL COMERCIO una licencia de uso no exclusiva, intransferible y revocable para operar el software en sus terminales autorizadas conforme a la edición contratada (Edición Bodega o Edición Fiscal).
-2.2. Modalidad de Operación Híbrida: El software opera de manera primordial bajo un esquema local sin conexión forzosa a internet (almacenamiento local seguro en base de datos SQLite), garantizando la continuidad operativa del establecimiento comercial ante caídas de telecomunicaciones o fallas eléctricas.
-2.3. Mantenimiento y Cuotas: Cuando el software se adquiera bajo modalidad de suscripción periódica ($15 USD/mes Bodega, $30 USD/mes Fiscal), el acceso continuo a actualizaciones normativas, soporte técnico y sincronización en la nube estará condicionado al pago puntual de la cuota acordada.
+2. NATURALEZA DE LA LICENCIA DE USO, TARIFAS Y ACTUALIZACIONES
+2.1. Concesión de Licencia: Se otorga a EL COMERCIO una licencia de uso no exclusiva, intransferible y revocable para operar el software FaradayPOS en sus terminales autorizadas conforme a la edición contratada: Edición Bodega, Edición Fiscal o Ambas Ediciones (Multimodal), protegida mediante llaves de activación con validación criptográfica SHA-256.
+2.2. Modalidad de Operación Híbrida (Offline-First): El software opera de manera primordial bajo un esquema local sin conexión forzosa a internet (almacenamiento local persistente en el equipo del comercio, con respaldos automáticos en la carpeta local "backups/" y archivo digital de comprobantes en "facturas_emitidas/"), garantizando la continuidad operativa del establecimiento comercial ante caídas de telecomunicaciones o fallas eléctricas.
+2.3. Mantenimiento, Suscripción Mensual y Validación en Nube: Cuando el software se adquiera bajo modalidad de suscripción periódica ($15 USD/mes para Edición Bodega, $25 USD/mes para Edición Fiscal SENIAT, o $35 USD/mes para Ambas Ediciones), el acceso continuo al sistema, soporte técnico y actualizaciones estará condicionado al pago puntual de la cuota acordada. El estado de vigencia de la licencia se sincroniza periódicamente con el servidor de licencias en la nube (Google Firebase Firestore), contando con un período de gracia offline de cortesía (3 a 5 días) antes de limitar las funciones de facturación por mora.
+2.4. Actualizaciones Oficiales del Sistema: El software incluye un módulo de actualización automática conectado al repositorio oficial de distribución en GitHub, el cual descarga e instala mejoras funcionales y normativas preservando intactos los datos comerciales, configuraciones y respaldos locales de EL COMERCIO.
 
 3. DELIMITACIÓN DE RESPONSABILIDAD TRIBUTARIA Y FISCAL (SENIAT)
 3.1. Rol Tecnológico: El software constituye exclusivamente una herramienta tecnológica de cálculo, registro y automatización contable-administrativa.
@@ -110,30 +111,30 @@ El presente contrato rige los términos, condiciones y límites de uso del softw
 La funcionalidad de "Libreta de Fiados" constituye un auxiliar de control de cuentas por cobrar entre vecinos y clientes de confianza. El software no actúa como entidad de intermediación financiera ni garantiza el cobro o solvencia de los deudores.
 
 7. PROPIEDAD INTELECTUAL Y CÓDIGO FUENTE
-Todos los derechos de autor, código fuente, algoritmos, interfaces visuales y documentación son propiedad exclusiva de sus creadores y están protegidos por las leyes de propiedad intelectual internacionales y de la República Bolivariana de Venezuela. Se prohíbe la ingeniería inversa no autorizada, descompilación fraudulenta o comercialización ilegal de copias del sistema.`;
+Todos los derechos de autor, marca comercial FaradayPOS, código fuente, algoritmos, hashes criptográficos, interfaces visuales y documentación son propiedad exclusiva de sus creadores y están protegidos por las leyes de propiedad intelectual internacionales y de la República Bolivariana de Venezuela. Se prohíbe la ingeniería inversa no autorizada, descompilación fraudulenta, alteración de validadores de licencia o comercialización ilegal de copias del sistema.`;
 
   const privacyText = `================================================================================
-POLÍTICA DE PRIVACIDAD, CONFIDENCIALIDAD Y TRATAMIENTO DE DATOS
+POLÍTICA DE PRIVACIDAD, CONFIDENCIALIDAD Y TRATAMIENTO DE DATOS — FARADAYPOS
 SISTEMA DE GESTIÓN COMERCIAL, INVENTARIO Y FACTURACIÓN FISCAL
 Versión: ${APP_VERSION} (Revisión 2026) • Ámbito: Comercial y Protección al Consumidor
 ================================================================================
 
 1. PRINCIPIO FUNDAMENTAL: SOBERANÍA TOTAL DEL DATO COMERCIAL
 Nos tomamos la privacidad de su negocio con el más estricto rigor profesional. A diferencia de las plataformas SaaS tradicionales que monopolizan su información en servidores ajenos:
-1.1. Almacenamiento Primario Local: Su catálogo de productos, lista de precios, márgenes de ganancia, costos reales de adquisición, historial de ventas y datos de clientes residen de forma primaria en su propio equipo (base de datos local SQLite o almacenamiento seguro de navegador).
+1.1. Almacenamiento Primario 100% Local: Su catálogo de productos, lista de precios, márgenes de ganancia, costos reales de adquisición (PMP), historial de ventas, cierres de caja y datos de clientes residen de forma exclusiva y primaria en su propio computador (almacenamiento seguro local del sistema, respaldos físicos en carpeta "backups/" y archivo de comprobantes en "facturas_emitidas/").
 1.2. No Comercialización: Bajo NINGUNA circunstancia vendemos, alquilamos, cedemos ni compartimos sus cifras de facturación, márgenes comerciales o datos de clientes con competidores, empresas de publicidad ni terceros. Su negocio le pertenece a usted.
 
-2. TIPOS DE DATOS TRATADOS Y FINALIDAD
+2. TIPOS DE DATOS TRATADOS LOCALMENTE Y SU FINALIDAD
 2.1. Datos de Facturación del Cliente Final: Cédula o RIF, Nombres o Razón Social, Teléfono y Dirección fiscal. Finalidad: Cumplimiento de las Providencias Administrativas SNAT/2011/00071 y SNAT/2024/000102 del SENIAT y emisión de comprobantes de venta.
-2.2. Datos de Operadores del Sistema: Nombres de cajeros, supervisores y administradores, roles asignados y código PIN cifrado de autenticación. Finalidad: Auditoría interna, arqueo de caja y control de acceso basado en roles (RBAC).
+2.2. Datos de Operadores del Sistema: Nombres de cajeros, supervisores y administradores, roles asignados y credenciales de autenticación. Las llaves de activación de edición están protegidas mediante algoritmos de hash irreversible SHA-256 con Salt criptográfico. Finalidad: Auditoría interna, arqueo de caja y control de acceso basado en roles (RBAC).
 2.3. Libreta de Fiados: Nombres de clientes frecuentes, números telefónicos y registro de saldos deudores. Finalidad: Gestión privada de cobros del establecimiento.
 
-3. RESPALDOS EN LA NUBE Y SINCRONIZACIÓN VOLUNTARIA
-3.1. Acción Voluntaria: El sistema no envía copias de su base de datos a internet sin que el administrador lo configure o ejecute explícitamente.
-3.2. Google Sheets y Google Drive: Cuando se utiliza la integración para respaldo automático o reporte contable:
-    a) La transmisión se realiza mediante protocolos seguros TLS/HTTPS directamente entre su navegador/servidor y las APIs autorizadas por usted.
-    b) El acceso está protegido por sus propias credenciales de Google Workspace OAuth o llaves de servicio privadas.
-    c) En ningún momento el equipo de soporte técnico accede a sus hojas de cálculo sin su expresa autorización previa.
+3. VALIDACIÓN DE LICENCIAS EN LA NUBE (FIREBASE FIRESTORE) Y RESPALDOS
+3.1. Telemetría Mínima de Licencia (Firebase Firestore): Para verificar la vigencia de la suscripción y la versión instalada del sistema, FaradayPOS sincroniza únicamente metadatos administrativos de la licencia con Google Firebase Firestore: Identificador de Licencia (cliente_id), Nombre del Comercio, RIF/Cédula del establecimiento, Edición Contratada, Cuota Mensual, Fecha de Vencimiento y Número de Versión instalada (v${APP_VERSION}).
+3.2. Exclusión Absoluta de Datos Comerciales en la Nube de Licencias: El canal de validación de Firebase Firestore NUNCA transmite ni recopila su catálogo de productos, precios, costos de proveedores, ventas realizadas, cierres de caja ni cartera de clientes.
+3.3. Respaldos Locales y en la Nube bajo Control del Usuario:
+    a) El sistema guarda copias de seguridad automáticas en la carpeta local "backups/" de su disco duro y archiva cada comprobante emitido en "facturas_emitidas/".
+    b) Cuando el administrador utiliza la exportación o sincronización con Google Sheets / archivos JSON, la transmisión se realiza mediante protocolos seguros TLS/HTTPS bajo autorización expresa del titular del comercio.
 
 4. TRATAMIENTO ÉTICO DE INTELIGENCIA ARTIFICIAL (GEMINI OCR)
 4.1. Escaneo de Facturas de Proveedores: Cuando el usuario utiliza el módulo de lectura de facturas físicas con IA (Gemini Vision), las imágenes cargadas son procesadas de manera estrictamente efímera.
@@ -142,11 +143,11 @@ Nos tomamos la privacidad de su negocio con el más estricto rigor profesional. 
 5. CONTROL DE ACCESO INTERNO Y PRIVACIDAD EN MOSTRADOR (RBAC)
 Para proteger la privacidad de sus costos comerciales frente a empleados y clientes en el mostrador:
 5.1. El perfil "CAJERO" tiene bloqueada por defecto la visualización del Costo Promedio Ponderado (PMP), valuaciones de inventario a costo y márgenes de utilidad neta.
-5.2. El acceso a reportes financieros confidenciales, libros de venta consolidados y exportación de base de datos requiere perfil "ADMINISTRADOR" o autorización de "SUPERVISOR".
+5.2. El acceso a reportes financieros confidenciales, libros de venta consolidados, configuración de licencias y exportación de base de datos requiere perfil "ADMINISTRADOR" o autorización de "SUPERVISOR".
 
 6. DERECHO A LA PORTABILIDAD Y DESTRUCCIÓN DE DATOS
-6.1. Exportabilidad Universal: EL COMERCIO tiene el derecho absoluto en cualquier momento de exportar toda su base de datos (productos, movimientos, ventas, clientes) en formatos abiertos y legibles como JSON, CSV o SQL para su libre migración.
-6.2. Eliminación Completa: Si EL COMERCIO decide dejar de utilizar el software, puede utilizar la herramienta de "Restablecimiento / Borrado Seguro" para eliminar definitivamente cualquier rastro de información de los dispositivos locales.`;
+6.1. Exportabilidad Universal: EL COMERCIO tiene el derecho absoluto en cualquier momento de exportar toda su base de datos (productos, movimientos, ventas, clientes) en formatos abiertos y legibles como JSON o CSV/Excel para su libre migración.
+6.2. Eliminación Completa: Si EL COMERCIO decide dejar de utilizar el software, puede utilizar la herramienta de "Restablecimiento de Fábrica / Borrado Seguro" para eliminar definitivamente cualquier rastro de información de los dispositivos locales.`;
 
   const fiscalNoticeText = `================================================================================
 AVISO FISCAL Y LEGAL SENIAT • RÉGIMEN TRIBUTARIO VENEZOLANO (ACTUALIZADO 2026)
@@ -160,7 +161,7 @@ El presente software está estructurado para emitir comprobantes de venta y form
 - Número de Factura consecutivo y Número de Control correlativo asignado.
 - Especificación de la cantidad, descripción, precio unitario y alícuota aplicable (16% o Exento).
 - Total facturado desglosado en Base Imponible, Exento, IVA y total a pagar.
-* ADVERTENCIA LEGAL: Si su empresa está obligada al uso de Máquina Fiscal homologada por el SENIAT en ventas presenciales, el Modo Bodega / Control Interno opera como auxiliar administrativo e inventario, debiendo emitirse la factura fiscal por su Máquina Fiscal o medio autorizado.
+* ADVERTENCIA LEGAL: Si su empresa está obligada al uso de Máquina Fiscal homologada por el SENIAT en ventas presenciales, la Edición Bodega / Control Interno opera como auxiliar administrativo e inventario, debiendo emitirse la factura fiscal por su Máquina Fiscal o medio autorizado.
 
 2. PROVIDENCIA ADMINISTRATIVA SNAT/2024/000102 (FACTURACIÓN DIGITAL E IMPRENTAS AUTORIZADAS)
 Publicada en Gaceta Oficial N° 43.032 del 19/12/2024 (derogando la Providencia SNAT/2014/0032):
@@ -194,7 +195,7 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                  Términos, Privacidad & Cumplimiento Legal
+                  Términos, Privacidad & Cumplimiento Legal — FaradayPOS
                 </h2>
                 <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-700/60 flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3 text-emerald-400" />
@@ -321,9 +322,9 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
                     : `${termsText}\n\n${privacyText}`;
                 const docName =
                   activeTab === "terms"
-                    ? "TERMINOS_Y_CONDICIONES_POS_2026.txt"
+                    ? "TERMINOS_Y_CONDICIONES_FARADAYPOS_2026.txt"
                     : activeTab === "privacy"
-                    ? "POLITICA_DE_PRIVACIDAD_POS_2026.txt"
+                    ? "POLITICA_DE_PRIVACIDAD_FARADAYPOS_2026.txt"
                     : "AVISO_LEGAL_SENIAT_BCV.txt";
                 handleDownloadDocument(currentDoc, docName);
               }}
@@ -354,9 +355,9 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-blue-950/30 border border-blue-500/40 rounded-2xl p-4 flex items-start gap-3.5">
                 <Shield className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                 <div className="space-y-1 text-xs">
-                  <h3 className="font-bold text-white text-sm">Resumen Ejecutivo de la Licencia POS (Actualizado Agosto 2026)</h3>
+                  <h3 className="font-bold text-white text-sm">Resumen Ejecutivo de la Licencia FaradayPOS (Actualizado 2026)</h3>
                   <p className="text-slate-300 text-[11px] leading-relaxed">
-                    Este software se entrega para uso comercial en el establecimiento designado. Conforme a la <strong>Providencia SNAT/2026/00084</strong> (que derogó la SNAT/2024/000121), la comercialización de sistemas administrativos e inventario no requiere homologación previa de software ante el SENIAT. El contribuyente es responsable de emitir sus facturas según la <strong>SNAT/2011/00071</strong> o <strong>SNAT/2024/000102</strong>.
+                    Este software se entrega para uso comercial en el establecimiento designado bajo modalidad <strong>Edición Bodega</strong>, <strong>Edición Fiscal SENIAT</strong> o <strong>Ambas Ediciones</strong>. Conforme a la <strong>Providencia SNAT/2026/00084</strong> (que derogó la SNAT/2024/000121), la comercialización de sistemas administrativos e inventario no requiere homologación previa de software ante el SENIAT. El contribuyente es responsable de emitir sus facturas según la <strong>SNAT/2011/00071</strong> o <strong>SNAT/2024/000102</strong>.
                   </p>
                 </div>
               </div>
@@ -365,10 +366,10 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
                   <span className="w-6 h-6 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center text-xs font-mono font-bold">1</span>
-                  <h4>Objeto y Alcance de la Licencia</h4>
+                  <h4>Objeto, Ediciones y Operación Local Autónoma</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed pl-8">
-                  Se concede a <strong>{license?.nombre_negocio || "EL COMERCIO"}</strong> una licencia no exclusiva e intransferible para instalar y operar el software en sus puntos de venta autorizados. El software funciona bajo arquitectura híbrida: opera 100% de manera autónoma local sin requerir conexión permanente a internet para registrar ventas, calcular vueltos y alimentar el inventario.
+                  Se concede a <strong>{license?.nombre_negocio || "EL COMERCIO"}</strong> una licencia no exclusiva e intransferible para instalar y operar <strong>FaradayPOS</strong> en sus puntos de venta autorizados. El software funciona bajo arquitectura híbrida <em>Offline-First</em>: opera 100% de manera autónoma en su equipo local sin requerir conexión permanente a internet para registrar ventas, calcular vueltos, generar respaldos en disco (<code>backups/</code>) ni archivar comprobantes emitidos (<code>facturas_emitidas/</code>).
                 </p>
               </div>
 
@@ -409,10 +410,10 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
                   <span className="w-6 h-6 rounded-full bg-purple-600/30 text-purple-400 flex items-center justify-center text-xs font-mono font-bold">5</span>
-                  <h4>Suscripción Mensual, Período de Gracia y Desconexión</h4>
+                  <h4>Planes de Suscripción Mensual, Validación de Licencia y Actualizaciones</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed pl-8">
-                  Para las modalidades con soporte y mantenimiento mensual ($15 USD Bodega / $30 USD Fiscal), se establece una fecha de corte mensual. En caso de corte o mora, el sistema cuenta con un período de gracia de cortesía (hasta 3-5 días offline). Si no se reporta el pago tras dicho período, el sistema podrá limitar las funciones de venta hasta que se regularice la cuota con el administrador.
+                  Para las modalidades con soporte, actualizaciones automáticas vía GitHub y mantenimiento mensual (<strong>$15 USD/mes Edición Bodega</strong>, <strong>$25 USD/mes Edición Fiscal SENIAT</strong>, y <strong>$35 USD/mes Ambas Ediciones</strong>), se establece una fecha de corte mensual validada a través de Google Firebase Firestore. En caso de vencimiento o mora, el sistema otorga un período de gracia de cortesía (3 a 5 días offline). Transcurrido dicho plazo sin renovación, el sistema podrá restringir temporalmente las funciones de facturación hasta regularizar la suscripción, manteniendo siempre intactos y accesibles los datos del comercio.
                 </p>
               </div>
 
@@ -420,10 +421,10 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
                   <span className="w-6 h-6 rounded-full bg-slate-600 text-slate-300 flex items-center justify-center text-xs font-mono font-bold">6</span>
-                  <h4>Propiedad Intelectual y Restricciones de Copia</h4>
+                  <h4>Propiedad Intelectual, Seguridad Criptográfica y Restricciones</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed pl-8">
-                  El código fuente, diseño, bases de datos y algoritmos son propiedad intelectual reservada. La licencia adquirida no faculta al usuario para revender, sublicenciar o descompilar el software para su distribución comercial a terceros ajenos a la licencia original contratada.
+                  El código fuente, diseño, arquitectura de base de datos, algoritmos y validadores criptográficos <strong>SHA-256</strong> de <strong>FaradayPOS</strong> son propiedad intelectual reservada. La licencia adquirida no faculta al usuario para revender, sublicenciar, alterar los mecanismos de control de licencia ni descompilar el software para su distribución comercial a terceros.
                 </p>
               </div>
             </div>
@@ -435,9 +436,9 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-indigo-950/30 border border-indigo-500/40 rounded-2xl p-4 flex items-start gap-3.5">
                 <Lock className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
                 <div className="space-y-1 text-xs">
-                  <h3 className="font-bold text-white text-sm">Compromiso de Privacidad y No Venta de Datos</h3>
+                  <h3 className="font-bold text-white text-sm">Compromiso de Privacidad y Soberanía de Datos Comerciales</h3>
                   <p className="text-slate-300 text-[11px] leading-relaxed">
-                    Sus datos de ventas, márgenes, costos PMP y clientes le pertenecen al 100% a su negocio. No vendemos sus números comerciales a competidores ni a terceros. La base de datos es local y soberana.
+                    Sus datos de ventas, catálogo, márgenes, costos PMP, cierres de caja y clientes le pertenecen al 100% a su negocio y permanecen en su computador local. Jamás comercializamos ni extraemos su información contable o de inventario.
                   </p>
                 </div>
               </div>
@@ -446,59 +447,77 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
                   <Database className="w-4 h-4 text-emerald-400" />
-                  <h4>1. Soberanía del Dato y Almacenamiento Local</h4>
+                  <h4>1. Almacenamiento Primario 100% Local y Respaldos en Disco</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed">
-                  Toda la información operativa (catálogo, precios, stock, ventas diarias, lista de clientes y fiados) se guarda de forma primordial en su máquina local a través de SQLite o almacenamiento local cifrado. Ninguna empresa externa tiene acceso a sus márgenes brutos ni a sus estadísticas de facturación a menos que usted exporte voluntariamente un respaldo.
+                  Toda la información operativa de su negocio (catálogo de productos, precios en USD/Bs, stock, ventas diarias, libro de ventas, clientes y libreta de fiados) se almacena directamente en su máquina local. Además, el servidor local genera copias de seguridad automáticas en la carpeta <code>backups/</code> de su disco duro y archiva digitalmente cada comprobante o factura emitida en la carpeta <code>facturas_emitidas/</code>.
                 </p>
               </div>
 
               {/* Sección 2 */}
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                  <h4>2. Sincronización con Google Sheets y Copias de Seguridad en la Nube</h4>
+                  <Shield className="w-4 h-4 text-blue-400" />
+                  <h4>2. Sincronización de Licencias en la Nube (Google Firebase Firestore)</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed">
-                  Cuando usted activa la opción de respaldo en la nube (Google Sheets / Google Drive):
+                  Con el único propósito de gestionar el estado de activación de su licencia, fecha de corte y control de versiones, el sistema se comunica de forma cifrada (HTTPS/TLS) con <strong>Google Firebase Firestore</strong> sincronizando exclusivamente los siguientes metadatos administrativos:
                 </p>
                 <ul className="list-disc list-inside space-y-1 text-slate-400 pl-2">
-                  <li>La transmisión se realiza exclusivamente mediante protocolo HTTPS / TLS cifrado punto a punto.</li>
-                  <li>Usted es el único propietario de la cuenta de Google y de la hoja de cálculo generada.</li>
-                  <li>Las credenciales se gestionan vía OAuth del cliente y nunca se transfieren a servidores no autorizados.</li>
+                  <li>Identificador de licencia (<code>cliente_id</code>), nombre del establecimiento y RIF/Cédula.</li>
+                  <li>Edición contratada (Bodega, Fiscal o Ambas), cuota mensual y fecha de vencimiento.</li>
+                  <li>Versión técnica instalada del software (<code>v{APP_VERSION}</code>) y marca de última conexión.</li>
+                  <li className="text-emerald-300 font-semibold">
+                    Garantía de Confidencialidad: Su catálogo de productos, precios, costos PMP, ventas y clientes NUNCA se envían a Firebase Firestore.
+                  </li>
                 </ul>
               </div>
 
               {/* Sección 3 */}
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
-                  <Cpu className="w-4 h-4 text-blue-400" />
-                  <h4>3. Tratamiento Efímero de Facturas por Inteligencia Artificial (Gemini)</h4>
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                  <h4>3. Exportación a Google Sheets, Excel y Actualizaciones vía GitHub</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed">
-                  El módulo de digitalización de facturas de proveedores utiliza la API de Google Gemini para extraer renglones mediante visión artificial. Las imágenes de las facturas no se almacenan en servidores públicos ni se utilizan para alimentar modelos compartidos. Una vez procesados los renglones para alimentar su inventario, la imagen temporal se descarta de la memoria volátil.
+                  Cuando usted utiliza las herramientas de exportación contable o actualización del sistema:
                 </p>
+                <ul className="list-disc list-inside space-y-1 text-slate-400 pl-2">
+                  <li>La sincronización opcional con Google Sheets / CSV se ejecuta bajo orden directa del administrador mediante conexiones seguras HTTPS.</li>
+                  <li>El módulo de actualizaciones consulta el repositorio oficial en GitHub únicamente para descargar nuevas versiones del código fuente, respetando y manteniendo intacta su base de datos local.</li>
+                </ul>
               </div>
 
               {/* Sección 4 */}
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
-                  <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                  <h4>4. Privacidad Interna en el Punto de Venta (RBAC)</h4>
+                  <Cpu className="w-4 h-4 text-purple-400" />
+                  <h4>4. Tratamiento Efímero de Facturas por Inteligencia Artificial (Gemini OCR)</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed">
-                  El sistema incorpora control de acceso por roles. Los cajeros tienen oculta la visualización del Costo Promedio Ponderado (PMP), valuaciones de inventario a costo y márgenes de ganancia. Esto garantiza que ningún empleado de mostrador pueda conocer los márgenes privados de utilidad del dueño del negocio.
+                  El módulo de digitalización de facturas de proveedores utiliza la API de Google Gemini para extraer renglones mediante visión artificial. Las imágenes de las facturas no se almacenan en servidores públicos ni se utilizan para entrenar modelos compartidos. Una vez procesados los renglones para alimentar su inventario local, la imagen temporal se descarta.
                 </p>
               </div>
 
               {/* Sección 5 */}
               <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center gap-2 font-bold text-white text-sm">
-                  <Download className="w-4 h-4 text-amber-400" />
-                  <h4>5. Portabilidad y Cero "Secuestro de Datos" (No Vendor Lock-in)</h4>
+                  <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                  <h4>5. Privacidad Interna en Mostrador (RBAC) y Seguridad SHA-256</h4>
                 </div>
                 <p className="text-slate-300 text-xs leading-relaxed">
-                  Usted tiene derecho en cualquier momento a descargar una copia completa de su base de datos en formato JSON o SQLite. No retenemos sus datos comerciales si decide cambiar de software o migrar de equipo.
+                  El sistema incorpora control de acceso por roles y validación criptográfica <strong>SHA-256 con Salt</strong> para las claves de activación de edición. Los operadores con rol de "CAJERO" tienen oculta la visualización del Costo Promedio Ponderado (PMP), valuaciones de inventario a costo y márgenes de ganancia neta, protegiendo la confidencialidad financiera del propietario frente a terceros en el mostrador.
+                </p>
+              </div>
+
+              {/* Sección 6 */}
+              <div className="bg-[#161822] border border-slate-800 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-white text-sm">
+                  <Download className="w-4 h-4 text-amber-400" />
+                  <h4>6. Portabilidad Total y Cero "Secuestro de Datos" (No Vendor Lock-in)</h4>
+                </div>
+                <p className="text-slate-300 text-xs leading-relaxed">
+                  Usted tiene derecho en cualquier momento a descargar una copia completa de su base de datos en formato JSON o exportar sus libros en CSV/Excel. Asimismo, cuenta con la función de "Restablecimiento de Fábrica" con respaldo automático previo para eliminar sus datos locales si decide migrar de equipo.
                 </p>
               </div>
             </div>
@@ -581,7 +600,7 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
 
                 <div className="space-y-1">
                   <h3 className="text-base font-extrabold text-white">
-                    Certificado de Aceptación Legal y Cumplimiento
+                    Certificado de Aceptación Legal y Cumplimiento — FaradayPOS
                   </h3>
                   <p className="text-xs text-slate-400 max-w-lg mx-auto">
                     Constancia digital vinculante entre el prestador del servicio tecnológico y el establecimiento comercial titular de la licencia.
@@ -591,22 +610,28 @@ De conformidad con los Convenios Cambiarios vigentes y resoluciones del Banco Ce
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto text-left bg-[#0e1017] p-4 rounded-xl border border-slate-800 text-xs font-mono">
                   <div>
                     <span className="text-slate-500 text-[10px] block uppercase">Establecimiento / Comercio:</span>
-                    <span className="text-white font-bold">{license?.nombre_negocio || "Comercio Usuario del Sistema"}</span>
+                    <span className="text-white font-bold">{license?.nombre_negocio || "Pendiente de registro"}</span>
                   </div>
 
                   <div>
                     <span className="text-slate-500 text-[10px] block uppercase">RIF / Cédula:</span>
-                    <span className="text-amber-400 font-bold">{license?.rif_cedula || "V-12345678-0"}</span>
+                    <span className="text-amber-400 font-bold">{license?.rif_cedula || "Pendiente de registro"}</span>
                   </div>
 
                   <div>
                     <span className="text-slate-500 text-[10px] block uppercase">Edición de Software:</span>
-                    <span className="text-blue-400 font-bold uppercase">{license?.edicion_contratada || "Edición Bodega & Fiscal"}</span>
+                    <span className="text-blue-400 font-bold uppercase">
+                      {license?.edicion_contratada === "ambas"
+                        ? "Ambas Ediciones (Bodega + Fiscal)"
+                        : license?.edicion_contratada === "fiscal"
+                        ? "Edición Fiscal SENIAT"
+                        : "Edición Bodega"}
+                    </span>
                   </div>
 
                   <div>
                     <span className="text-slate-500 text-[10px] block uppercase">Versión del Marco Legal:</span>
-                    <span className="text-emerald-400 font-bold">v{APP_VERSION} - Leyes Fiscales 2026</span>
+                    <span className="text-emerald-400 font-bold">FaradayPOS v{APP_VERSION} (2026)</span>
                   </div>
 
                   <div>

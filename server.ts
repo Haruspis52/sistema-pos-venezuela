@@ -94,6 +94,68 @@ function fetchBcvOfficialDirect(): Promise<{
 
 async function startServer() {
   const app = express();
+  let viteServer: Awaited<ReturnType<typeof createViteServer>> | null = null;
+  let httpServer: ReturnType<typeof app.listen> | null = null;
+
+  const getLiveAppVersion = (): string => {
+    try {
+      const pkgPath = path.join(process.cwd(), "package.json");
+      if (fs.existsSync(pkgPath)) {
+        const raw = fs.readFileSync(pkgPath, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.version === "string" && parsed.version.trim()) {
+          return parsed.version.trim();
+        }
+      }
+    } catch {}
+    return APP_VERSION;
+  };
+
+  const readPackageDepsSignature = (): string => {
+    try {
+      const pkgPath = path.join(process.cwd(), "package.json");
+      if (fs.existsSync(pkgPath)) {
+        const parsed = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+        return JSON.stringify({
+          dependencies: parsed.dependencies || {},
+          devDependencies: parsed.devDependencies || {},
+        });
+      }
+    } catch {}
+    return "";
+  };
+
+  const syncAndWarmViteAfterUpdate = async () => {
+    if (!viteServer) return;
+    try {
+      viteServer.moduleGraph.invalidateAll();
+      await new Promise((r) => setTimeout(r, 350));
+      viteServer.moduleGraph.invalidateAll();
+
+      const warmTargets = [
+        "/src/main.tsx",
+        "/src/App.tsx",
+        "/src/version.ts",
+        "/src/types.ts",
+        "/src/mockDb.ts",
+        "/src/firebase.ts",
+        "/src/services/licenseService.ts",
+        "/src/components/Header.tsx",
+        "/src/components/BodegaEditionView.tsx",
+        "/src/components/PosView.tsx",
+      ];
+
+      for (const target of warmTargets) {
+        try {
+          await viteServer.transformRequest(target);
+        } catch (warmErr: any) {
+          console.warn(`[Updater] Aviso pre-compilando ${target}:`, warmErr?.message || warmErr);
+        }
+      }
+    } catch (err: any) {
+      console.warn("[Updater] Aviso al sincronizar grafo de módulos Vite:", err?.message || err);
+    }
+  };
 
   // Increase payload limit for base64 invoice images
   app.use(express.json({ limit: "25mb" }));
@@ -103,15 +165,38 @@ async function startServer() {
   app.get("/api/health", (_req, res) => {
     res.json({
       status: "ok",
+      version: getLiveAppVersion(),
       hasGeminiKey: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
       timestamp: new Date().toISOString(),
     });
   });
 
+  // Frontend Readiness Check (ensures Vite module graph has compiled entry points after update)
+  app.get("/api/system/ready", async (_req, res) => {
+    try {
+      if (viteServer) {
+        await viteServer.transformRequest("/src/main.tsx");
+        await viteServer.transformRequest("/src/App.tsx");
+      }
+      return res.json({
+        ready: true,
+        version: getLiveAppVersion(),
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      return res.status(503).json({
+        ready: false,
+        version: getLiveAppVersion(),
+        error: err?.message || "Compilando módulos...",
+      });
+    }
+  });
+
   // System Version & Environment Info
   app.get("/api/system/version", (_req, res) => {
+    const liveVersion = getLiveAppVersion();
     res.json({
-      version: APP_VERSION,
+      version: liveVersion,
       releaseDate: RELEASE_DATE,
       changelog: CURRENT_VERSION_INFO.changelog,
       defaultRepo: DEFAULT_GITHUB_REPO,
@@ -122,13 +207,57 @@ async function startServer() {
     });
   });
 
+  // Clean Shutdown of Local Server & Node.js Process
+  app.post("/api/system/shutdown", (req, res) => {
+    const hostHeader = String(req.headers.host || "").toLowerCase();
+    const isCloudPreview =
+      process.env.DISABLE_HMR === "true" ||
+      hostHeader.includes(".run.app") ||
+      hostHeader.includes("aistudio");
+
+    if (isCloudPreview) {
+      return res.json({
+        success: true,
+        simulated: true,
+        message:
+          "Modo vista previa en la nube: cuando ejecutes FaradayPOS en tu PC local, este botón cerrará automáticamente el servidor Node.js y la ventana de consola.",
+      });
+    }
+
+    res.json({
+      success: true,
+      simulated: false,
+      message: "Servidor local Node.js apagado correctamente. Ya puede cerrar esta ventana.",
+    });
+
+    console.log("\n[FaradayPOS] Orden de apagado recibida desde el programa. Cerrando servidor local en puerto 3000...");
+    setTimeout(async () => {
+      try {
+        if (viteServer) {
+          await viteServer.close();
+        }
+      } catch {}
+      try {
+        if (httpServer) {
+          httpServer.close(() => {
+            process.exit(0);
+          });
+        }
+      } catch {}
+      setTimeout(() => {
+        process.exit(0);
+      }, 250);
+    }, 350);
+  });
+
   // Check for updates on GitHub repository
   app.get("/api/system/check-github-update", async (req, res) => {
     const repo = (req.query.repo as string) || DEFAULT_GITHUB_REPO;
+    const currentInstalledVersion = getLiveAppVersion();
 
     try {
       // 1. Consultar package.json en raw.githubusercontent.com
-      const rawPkgUrl = `https://raw.githubusercontent.com/${repo}/main/package.json`;
+      const rawPkgUrl = `https://raw.githubusercontent.com/${repo}/main/package.json?t=${Date.now()}`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);
 
@@ -145,7 +274,7 @@ async function startServer() {
         return res.json({
           success: false,
           hasUpdate: false,
-          currentVersion: APP_VERSION,
+          currentVersion: currentInstalledVersion,
           remoteVersion: null,
           message: `No se pudo consultar el repositorio '${repo}'. Verifica que sea público o que exista. (HTTP ${pkgRes.status})`,
         });
@@ -156,7 +285,7 @@ async function startServer() {
 
       // Comparar versiones semánticas (ej. "2.5.1" > "2.5.0")
       const parseSemver = (v: string) => v.replace(/^v/i, "").split(".").map((n) => parseInt(n, 10) || 0);
-      const [cMajor, cMinor, cPatch] = parseSemver(APP_VERSION);
+      const [cMajor, cMinor, cPatch] = parseSemver(currentInstalledVersion);
       const [rMajor, rMinor, rPatch] = parseSemver(remoteVersion);
 
       let hasUpdate = false;
@@ -179,7 +308,7 @@ async function startServer() {
       return res.json({
         success: true,
         hasUpdate,
-        currentVersion: APP_VERSION,
+        currentVersion: currentInstalledVersion,
         remoteVersion,
         releaseDate: new Date().toISOString().slice(0, 10),
         releaseNotes: releaseNotes || (hasUpdate ? "Nueva versión con correcciones y mejoras de rendimiento." : "El sistema ya está al día."),
@@ -190,7 +319,7 @@ async function startServer() {
       return res.json({
         success: false,
         hasUpdate: false,
-        currentVersion: APP_VERSION,
+        currentVersion: currentInstalledVersion,
         remoteVersion: null,
         message: `Fallo de conexión con GitHub (${err?.message || "Timeout"}). Verifica tu conexión a internet.`,
       });
@@ -204,6 +333,8 @@ async function startServer() {
       rawRepo = "Haruspis52/sistema-pos-venezuela";
     }
     const cleanRepo = rawRepo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/^\/+|\/+$/g, "") || "Haruspis52/sistema-pos-venezuela";
+    const beforeDepsSig = readPackageDepsSignature();
+    const hasNodeModules = fs.existsSync(path.join(process.cwd(), "node_modules"));
 
     // 1. Si git está instalado y funcional en el sistema operativo
     const hasGitCommand = await new Promise<boolean>((resolve) => {
@@ -215,7 +346,7 @@ async function startServer() {
     if (hasGitCommand && hasGitFolder) {
       try {
         const gitResult = await new Promise<{ success: boolean; output: string }>((resolve) => {
-          exec("git pull origin main && npm install --no-audit --no-fund && npm run build", { timeout: 60000 }, (error, stdout, stderr) => {
+          exec("git pull origin main", { timeout: 30000 }, (error, stdout, stderr) => {
             if (error) {
               resolve({ success: false, output: stderr || stdout });
             } else {
@@ -225,10 +356,26 @@ async function startServer() {
         });
 
         if (gitResult.success) {
+          const afterDepsSig = readPackageDepsSignature();
+          if (!hasNodeModules || (beforeDepsSig && afterDepsSig && beforeDepsSig !== afterDepsSig)) {
+            await new Promise<void>((resolve) => {
+              exec("npm install --no-audit --no-fund", { timeout: 60000 }, () => resolve());
+            });
+          }
+
+          if (process.env.NODE_ENV === "production") {
+            await new Promise<void>((resolve) => {
+              exec("npm run build", { timeout: 60000 }, () => resolve());
+            });
+          }
+
+          await syncAndWarmViteAfterUpdate();
+
           return res.json({
             success: true,
             method: "git",
-            message: "¡Actualización descargada y compilada con éxito usando Git!",
+            newVersion: getLiveAppVersion(),
+            message: "¡Actualización descargada y preparada con éxito usando Git!",
             output: gitResult.output,
           });
         }
@@ -285,25 +432,27 @@ async function startServer() {
       const rootFolder = Object.keys(zip.files).find((f) => f.endsWith("/") && f.split("/").length === 2) || "";
       const basePrefix = rootFolder;
 
-      let extractedCount = 0;
       const cwd = process.cwd();
+      const filesToWrite: Array<{ fullPath: string; dir: string; data: Buffer }> = [];
 
+      // Descomprimir primero todos los archivos en memoria para luego escribirlos en una sola ráfaga atómica
+      // (Evita que Vite detecte archivos a medio actualizar y dispare HMR provocando pantalla en blanco)
       for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
         if (zipEntry.dir) continue;
 
-        // Quitar el prefijo de la carpeta raíz de GitHub
         let targetRelative = relativePath;
         if (basePrefix && targetRelative.startsWith(basePrefix)) {
           targetRelative = targetRelative.slice(basePrefix.length);
         }
         if (!targetRelative) continue;
 
-        // Omitir archivos sensibles o de datos del cliente o el propio script de server
+        // Omitir archivos sensibles o de datos locales del cliente
         if (
           targetRelative.startsWith(".git") ||
           targetRelative.startsWith(".env") ||
           targetRelative.startsWith("node_modules") ||
-          targetRelative === "server.ts" ||
+          targetRelative.startsWith("backups/") ||
+          targetRelative.startsWith("facturas_emitidas/") ||
           targetRelative.endsWith(".sqlite") ||
           targetRelative.endsWith(".db")
         ) {
@@ -312,30 +461,59 @@ async function startServer() {
 
         const targetFullPath = path.join(cwd, targetRelative);
         const targetDir = path.dirname(targetFullPath);
-
-        if (!fs.existsSync(targetDir)) {
-          fs.mkdirSync(targetDir, { recursive: true });
-        }
-
         const fileData = await zipEntry.async("nodebuffer");
-        fs.writeFileSync(targetFullPath, fileData);
+        filesToWrite.push({
+          fullPath: targetFullPath,
+          dir: targetDir,
+          data: fileData,
+        });
+      }
+
+      // Escritura atómica síncrona en disco (toma pocos milisegundos sin pausas intermedias)
+      let extractedCount = 0;
+      for (const fileItem of filesToWrite) {
+        if (!fs.existsSync(fileItem.dir)) {
+          fs.mkdirSync(fileItem.dir, { recursive: true });
+        }
+        fs.writeFileSync(fileItem.fullPath, fileItem.data);
         extractedCount++;
       }
 
-      // Asegurar que cualquier dependencia nueva añadida en package.json (como firebase) se instale
-      try {
-        await new Promise<void>((resolve) => {
-          exec("npm install --no-audit --no-fund", { timeout: 45000 }, () => resolve());
-        });
-      } catch (npmErr) {
-        console.warn("npm install tras actualización ZIP:", npmErr);
+      // Ejecutar npm install ÚNICAMENTE si cambiaron las dependencias en package.json o falta node_modules
+      // (Evita que Vite re-empaquete node_modules/.vite innecesariamente produciendo error 504 Outdated Optimize Dep)
+      const afterDepsSig = readPackageDepsSignature();
+      const depsChanged = !hasNodeModules || (beforeDepsSig && afterDepsSig && beforeDepsSig !== afterDepsSig);
+
+      if (depsChanged) {
+        try {
+          console.log("[Updater] Nuevas dependencias detectadas en package.json. Ejecutando npm install...");
+          await new Promise<void>((resolve) => {
+            exec("npm install --no-audit --no-fund", { timeout: 60000 }, () => resolve());
+          });
+        } catch (npmErr) {
+          console.warn("npm install tras actualización ZIP:", npmErr);
+        }
       }
+
+      if (process.env.NODE_ENV === "production") {
+        try {
+          await new Promise<void>((resolve) => {
+            exec("npm run build", { timeout: 60000 }, () => resolve());
+          });
+        } catch (buildErr) {
+          console.warn("npm run build tras actualización ZIP:", buildErr);
+        }
+      }
+
+      // Invalidar caché de módulos de Vite y pre-compilar los puntos de entrada antes de responder al navegador
+      await syncAndWarmViteAfterUpdate();
 
       return res.json({
         success: true,
         method: "direct_zip",
-        message: `¡Actualización aplicada con éxito desde GitHub! (${extractedCount} archivos actualizados sin requerir Git).`,
-        output: `Se actualizaron ${extractedCount} archivos del sistema directamente desde ${cleanRepo}/main (vía ${usedUrl || "GitHub ZIP"}).`,
+        newVersion: getLiveAppVersion(),
+        message: `¡Actualización a v${getLiveAppVersion()} aplicada y compilada con éxito desde GitHub! (${extractedCount} archivos actualizados).`,
+        output: `Se actualizaron ${extractedCount} archivos de forma atómica desde ${cleanRepo}/main (vía ${usedUrl || "GitHub ZIP"}).\nCaché de módulos Vite sincronizada y lista para recargar.`,
       });
     } catch (zipError: any) {
       console.error("Error al procesar actualización directa ZIP:", zipError);
@@ -1367,11 +1545,11 @@ FORMA DE PAGO:                                    ${sale.metodo_pago || "Efectiv
 
   // Vite middleware for development vs static build for production
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
+    viteServer = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
-    app.use(vite.middlewares);
+    app.use(viteServer.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
@@ -1380,7 +1558,7 @@ FORMA DE PAGO:                                    ${sale.metodo_pago || "Efectiv
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Servidor de inventario corriendo en http://0.0.0.0:${PORT}`);
   });
 }

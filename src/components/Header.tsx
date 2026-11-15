@@ -30,6 +30,8 @@ import {
   Keyboard,
   Bug,
   GitBranch,
+  Power,
+  CheckCircle2,
 } from "lucide-react";
 import { PosOperationalMode, SystemUser } from "../types";
 
@@ -98,7 +100,37 @@ export const Header: React.FC<HeaderProps> = ({
   const [tempBcvRate, setTempBcvRate] = useState(bcvRate.toString());
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showShutdownConfirm, setShowShutdownConfirm] = useState(false);
+  const [isShuttingDown, setIsShuttingDown] = useState(false);
+  const [isServerStopped, setIsServerStopped] = useState(false);
+  const [shutdownMessage, setShutdownMessage] = useState<string>("");
   const isCashier = currentUser?.rol === "CAJERO";
+
+  const handleConfirmShutdown = async () => {
+    setIsShuttingDown(true);
+    try {
+      const res = await fetch("/api/system/shutdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      setShutdownMessage(
+        data?.message ||
+          "El servidor local Node.js ha sido detenido correctamente. Ya puedes cerrar esta ventana del navegador."
+      );
+    } catch {
+      setShutdownMessage(
+        "El servidor local Node.js ha sido detenido. Ya puedes cerrar esta pestaña del navegador."
+      );
+    } finally {
+      setIsShuttingDown(false);
+      setShowShutdownConfirm(false);
+      setIsServerStopped(true);
+      try {
+        window.close();
+      } catch {}
+    }
+  };
 
   const toolsMenuRef = useRef<HTMLDivElement>(null);
   const bcvInputRef = useRef<HTMLInputElement>(null);
@@ -378,18 +410,6 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Botón de Atajos de Teclado */}
-          {onOpenKeyboardShortcuts && (
-            <button
-              type="button"
-              onClick={onOpenKeyboardShortcuts}
-              title="Ver Atajos de Teclado Rápido (F7 / Alt + H)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-700/80 bg-[#161a22] hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition-all cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Keyboard className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="hidden xl:inline font-mono">F7 Atajos</span>
-            </button>
-          )}
           <div className="relative shrink-0" ref={toolsMenuRef}>
             <button
               id="btn-tools-menu"
@@ -459,6 +479,26 @@ export const Header: React.FC<HeaderProps> = ({
 
                     <div className="my-1.5 border-t border-slate-800" />
                   </>
+                )}
+
+                {onOpenKeyboardShortcuts && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsToolsOpen(false);
+                      onOpenKeyboardShortcuts();
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-300 hover:bg-slate-800/70 hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Keyboard className="w-4 h-4 text-amber-400" />
+                      <div>
+                        <div className="font-medium">F7 Atajos de Teclado</div>
+                        <div className="text-[10px] text-slate-500">Teclas rápidas de cobro y navegación</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+                  </button>
                 )}
 
                 {/* Categoría: Infraestructura & Servidor */}
@@ -620,9 +660,40 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   </>
                 )}
+
+                <div className="my-1.5 border-t border-slate-800" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsToolsOpen(false);
+                    setShowShutdownConfirm(true);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs text-rose-300 hover:bg-rose-950/50 hover:text-rose-200 transition-colors cursor-pointer text-left font-bold"
+                >
+                  <div className="flex items-center gap-2">
+                    <Power className="w-4 h-4 text-rose-400" />
+                    <div>
+                      <div className="font-bold">Apagar Sistema y Servidor</div>
+                      <div className="text-[10px] text-slate-400 font-normal">Detener Node.js local y cerrar programa</div>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-rose-500/70" />
+                </button>
               </div>
             )}
           </div>
+
+          {/* Botón Directo de Apagar Sistema / Servidor */}
+          <button
+            id="btn-shutdown-system"
+            type="button"
+            onClick={() => setShowShutdownConfirm(true)}
+            title="Apagar Sistema y detener el servidor local Node.js"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-rose-500/40 bg-rose-950/30 hover:bg-rose-600 text-rose-300 hover:text-white hover:border-rose-500 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-sm"
+          >
+            <Power className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden xl:inline">Apagar</span>
+          </button>
 
           {/* Botón Móvil Hamburguesa (para teléfonos y tablets) */}
           <button
@@ -798,6 +869,20 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
 
+                {onOpenKeyboardShortcuts && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      onOpenKeyboardShortcuts();
+                    }}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-lg text-xs text-amber-300 hover:bg-slate-800/80 cursor-pointer"
+                  >
+                    <Keyboard className="w-4 h-4 text-amber-400" />
+                    <span>F7 Atajos de Teclado</span>
+                  </button>
+                )}
+
                 {!isCashier && onOpenNodeJsGuide && (
                   <button
                     type="button"
@@ -881,8 +966,107 @@ export const Header: React.FC<HeaderProps> = ({
                     <span>Términos & Marco SENIAT</span>
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setShowShutdownConfirm(true);
+                  }}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-lg text-xs font-bold text-rose-300 hover:bg-rose-950/50 cursor-pointer mt-2 border border-rose-500/30"
+                >
+                  <Power className="w-4 h-4 text-rose-400" />
+                  <span>Apagar Sistema y Servidor</span>
+                </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* MODAL DE CONFIRMACIÓN PARA APAGAR EL SISTEMA Y SERVIDOR LOCAL       */}
+      {/* =================================================================== */}
+      {showShutdownConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-[#131722] border-2 border-rose-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl shadow-black/90 space-y-5">
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                <Power className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  ¿Apagar FaradayPOS y el Servidor Local?
+                </h3>
+                <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                  Se cerrará el servidor local <strong>Node.js (Puerto 3000)</strong> y la ventana de consola en tu computadora.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[#0d1017] border border-slate-800 rounded-xl p-3.5 text-[11px] text-slate-400 space-y-1">
+              <div className="flex items-center gap-2 text-emerald-300 font-semibold">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>Tus ventas, inventario y cierres están guardados de forma segura.</span>
+              </div>
+              <p className="pl-6 text-slate-400">
+                Para volver a abrir el sistema más tarde, solo haz doble clic en <code className="text-amber-300 font-mono">INICIAR_SISTEMA_NODEJS.bat</code>.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                disabled={isShuttingDown}
+                onClick={() => setShowShutdownConfirm(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isShuttingDown}
+                onClick={handleConfirmShutdown}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black flex items-center gap-2 shadow-lg shadow-rose-950/60 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Power className="w-4 h-4" />
+                <span>{isShuttingDown ? "Apagando..." : "Sí, Apagar Sistema"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* PANTALLA FINAL DE SISTEMA APAGADO DE FORMA SEGURA                   */}
+      {/* =================================================================== */}
+      {isServerStopped && (
+        <div className="fixed inset-0 z-[100] min-h-screen bg-[#0b0d13] text-slate-100 flex items-center justify-center p-4">
+          <div className="bg-[#121621] border border-slate-800 rounded-3xl max-w-md w-full p-7 text-center shadow-2xl space-y-5">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-950/40">
+              <Power className="w-8 h-8" />
+            </div>
+            <div className="space-y-1.5">
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-slate-700">
+                Servidor Local Detenido • Puerto 3000 Liberado
+              </span>
+              <h2 className="text-xl font-black text-white">
+                Sistema Apagado Correctamente
+              </h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {shutdownMessage}
+              </p>
+            </div>
+            <div className="p-3.5 rounded-xl bg-[#0b0e15] border border-slate-800/90 text-[11px] text-slate-400">
+              Ya puedes cerrar esta pestaña del navegador con total seguridad.
+            </div>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Reconectar (si volviste a iniciar el servidor)
+            </button>
           </div>
         </div>
       )}

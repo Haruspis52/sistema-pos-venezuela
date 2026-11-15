@@ -1687,30 +1687,6 @@ export function App() {
                     <span>Facturas de Proveedor (IA)</span>
                   </button>
                 </div>
-
-                {/* Badge indicador del modo activo en la barra de pestañas */}
-                <button
-                  onClick={() => setShowEditionModal(true)}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-mono font-bold border transition-colors ${
-                    appEdition === "bodega"
-                      ? "bg-amber-950/40 text-amber-300 border-amber-500/40 hover:bg-amber-900/40"
-                      : "bg-blue-950/40 text-blue-300 border-blue-500/40 hover:bg-blue-900/40"
-                  }`}
-                  title="Clic para cambiar de edición"
-                >
-                  {appEdition === "bodega" ? (
-                    <>
-                      <Store className="w-3 h-3 text-amber-400" />
-                      <span>Modo Bodega</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-3 h-3 text-blue-400" />
-                      <span>Modo Fiscal</span>
-                    </>
-                  )}
-                  <span className="text-[9px] underline ml-1 text-slate-400">cambiar</span>
-                </button>
               </div>
             </div>
 
@@ -1745,6 +1721,8 @@ export function App() {
                       onTogglePosMode={handleSelectPosMode}
                       currentUser={currentUser}
                       onUserChange={(newUser) => setCurrentUser(newUser)}
+                      onOpenCatalog={() => setActiveCtkTab("inventory")}
+                      onOpenInvoiceAi={() => setActiveCtkTab("invoice_ai")}
                     />
                   )}
 
@@ -1771,6 +1749,7 @@ export function App() {
                       onCompleteSale={handleCompleteSale}
                       posMode={posMode}
                       onTogglePosMode={handleSelectPosMode}
+                      onOpenCatalog={() => setActiveCtkTab("inventory")}
                     />
                   )}
 

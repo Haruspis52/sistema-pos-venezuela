@@ -81,6 +81,7 @@ interface PosViewProps {
   ) => Venta;
   posMode?: PosOperationalMode;
   onTogglePosMode?: (mode: PosOperationalMode) => void;
+  onOpenCatalog?: () => void;
 }
 
 export const PosView: React.FC<PosViewProps> = ({
@@ -90,6 +91,7 @@ export const PosView: React.FC<PosViewProps> = ({
   onCompleteSale,
   posMode = "inventory_only",
   onTogglePosMode,
+  onOpenCatalog,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -601,80 +603,9 @@ export const PosView: React.FC<PosViewProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Banner de Modo Operativo (Solo Inventario vs SmartPOS) */}
-      <div className="bg-[#151720] border border-slate-800/90 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              posMode === "inventory_only"
-                ? "bg-amber-500/20 border border-amber-500/40 text-amber-400"
-                : "bg-blue-500/20 border border-blue-500/40 text-blue-400"
-            }`}
-          >
-            {posMode === "inventory_only" ? (
-              <ShoppingCart className="w-5 h-5" />
-            ) : (
-              <Smartphone className="w-5 h-5" />
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-white tracking-wide">
-                {posMode === "inventory_only"
-                  ? "Modo Caja Rápida & Solo Inventario"
-                  : "Modo SmartPOS Integrado (Terminal Bancario)"}
-              </span>
-              <span
-                className={`text-[10px] uppercase font-bold font-mono px-2 py-0.5 rounded-md border ${
-                  posMode === "inventory_only"
-                    ? "bg-amber-950/70 text-amber-300 border-amber-700/60"
-                    : "bg-blue-950/70 text-blue-300 border-blue-700/60"
-                }`}
-              >
-                {posMode === "inventory_only" ? "Sin Datáfono" : `IP: ${wizarPosIp}`}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              {posMode === "inventory_only"
-                ? "Agrega productos para totalizar en $ / Bs. BCV y descontar automáticamente del inventario."
-                : "Envía montos por Wi-Fi/red al datáfono físico (WizarPOS, PAX, Sunmi) y recibe lotes bancarios."}
-            </p>
-          </div>
-        </div>
-
-        {onTogglePosMode && (
-          <div className="flex items-center gap-1.5 self-start sm:self-auto bg-[#0f1117] p-1 rounded-xl border border-slate-800">
-            <button
-              type="button"
-              onClick={() => onTogglePosMode("inventory_only")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                posMode === "inventory_only"
-                  ? "bg-amber-500 text-slate-950 shadow"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              <span>Solo Inventario</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onTogglePosMode("smartpos")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                posMode === "smartpos"
-                  ? "bg-blue-600 text-white shadow"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>SmartPOS</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         {/* Left 2 Columns: Fiscal Data + Search Bar + Cart */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 min-w-0 space-y-4">
         {/* Banner de Validación LISLR Art. 177 si ocurre intento de existencia negativa */}
         {stockError && (
           <div className="bg-rose-950/80 border border-rose-700/90 rounded-xl p-3 text-rose-200 text-xs flex items-start gap-2.5 animate-pulse shadow-lg">
@@ -999,13 +930,29 @@ export const PosView: React.FC<PosViewProps> = ({
               <tbody className="divide-y divide-slate-800/60">
                 {cart.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-24 text-center text-slate-500">
-                      <div className="flex flex-col items-center justify-center gap-2">
+                    <td colSpan={9} className="py-20 text-center text-slate-500">
+                      <div className="flex flex-col items-center justify-center gap-2.5">
                         <ShoppingCart className="w-8 h-8 text-slate-600" />
-                        <p className="text-sm font-medium">No hay renglones en la factura</p>
-                        <p className="text-xs text-slate-500 max-w-xs">
-                          Escanee con lector de código de barras o busque productos arriba.
+                        <p className="text-sm font-medium text-slate-300">
+                          {products.length === 0
+                            ? "Tu catálogo de productos está vacío"
+                            : "No hay renglones en la factura"}
                         </p>
+                        <p className="text-xs text-slate-500 max-w-xs">
+                          {products.length === 0
+                            ? "Agrega tu primer producto o importa tu inventario desde Excel/CSV para comenzar a facturar."
+                            : "Escanee con lector de código de barras o busque productos arriba."}
+                        </p>
+                        {products.length === 0 && onOpenCatalog && (
+                          <button
+                            type="button"
+                            onClick={onOpenCatalog}
+                            className="mt-1 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Agregar o Importar Productos (Catálogo)</span>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1085,17 +1032,14 @@ export const PosView: React.FC<PosViewProps> = ({
         </div>
       </div>
 
-      {/* Right Column: Fiscal Summary + Payment & Checkout */}
-      <div className="space-y-4">
+      {/* Right Column: Sticky Fiscal Summary + Payment & Checkout (Point 1 & Point 5) */}
+      <div className="space-y-4 lg:sticky lg:top-20 min-w-0">
         <div className="bg-[#1a1d24] border border-slate-800 rounded-xl p-4 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
               <Receipt className="w-4 h-4 text-emerald-400" />
               <span>Liquidación Fiscal Prov. 00071</span>
             </h3>
-            <span className="text-[10px] font-mono text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/80">
-              BCV: Bs. {bcvRate.toFixed(2)}
-            </span>
           </div>
 
           {/* Desglose Fiscal Detallado SENIAT */}

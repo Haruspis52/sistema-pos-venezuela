@@ -19,8 +19,9 @@ if not exist node_modules (
 REM Abrir navegador web predeterminado despues de 2 segundos en segundo plano
 start "" cmd /c "timeout /t 2 /nobreak >nul & start http://localhost:3000"
 
-echo [OK] Servidor activo. Para detenerlo, presione Ctrl + C o cierre esta ventana.
+echo [OK] Servidor activo. Puede apagarlo desde el boton "Apagar" del programa o cerrando esta ventana.
 echo Abriendo aplicacion en http://localhost:3000 ...
 echo.
 
-npm run dev
+call npm run dev
+exit /b 0

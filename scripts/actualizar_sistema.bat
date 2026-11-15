@@ -41,7 +41,7 @@ echo [✓] Archivos de código actualizados.
 echo.
 
 echo [3/4] Verificando dependencias de Node.js...
-call npm install --omit=dev --no-audit --no-fund
+call npm install --no-audit --no-fund
 echo [✓] Dependencias al día.
 echo.
 
