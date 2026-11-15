@@ -398,6 +398,11 @@ export function App() {
     setNegocioConfig(newConfig);
     setAppEdition(edition);
     setPosMode(mode);
+    setProducts(getStoredProducts());
+    setCategories(getStoredCategories());
+    setMovements(getStoredMovements());
+    setSales(getStoredSales());
+    setCorrelativos(getCorrelativosFiscales());
     saveStoredInitialSetupDone(true);
     setIsLoggedIn(true);
     if (edition === "bodega") {
@@ -1731,6 +1736,7 @@ export function App() {
                   {activeCtkTab === "bodega" && (
                     <BodegaEditionView
                       products={products}
+                      sales={sales}
                       bcvRate={bcvRate}
                       onUpdateProductStock={handleBodegaStockUpdate}
                       onRecordSale={(sale) => updateSalesState([sale, ...sales])}

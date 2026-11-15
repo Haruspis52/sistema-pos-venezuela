@@ -19,14 +19,14 @@ import {
 } from "./types";
 import { APP_VERSION } from "./version";
 
-const STORAGE_KEY_PRODUCTS = "sqlite_inventario_venezuela_productos_v2";
+const STORAGE_KEY_PRODUCTS = "sqlite_inventario_venezuela_productos_v3";
 const STORAGE_KEY_CATEGORIES = "sqlite_inventario_venezuela_categorias_v2";
-const STORAGE_KEY_MOVEMENTS = "sqlite_inventario_venezuela_kardex_v2";
-const STORAGE_KEY_SALES = "sqlite_inventario_venezuela_ventas_v2";
+const STORAGE_KEY_MOVEMENTS = "sqlite_inventario_venezuela_kardex_v3";
+const STORAGE_KEY_SALES = "sqlite_inventario_venezuela_ventas_v3";
 const STORAGE_KEY_BCV_RATE = "sqlite_inventario_venezuela_bcv_rate_v2";
-const STORAGE_KEY_CORRELATIVOS = "sqlite_inventario_venezuela_correlativos_v2";
-const STORAGE_KEY_FIADOS = "sqlite_bodega_fiados_v1";
-const STORAGE_KEY_CIERRES = "sqlite_bodega_cierres_caja_v1";
+const STORAGE_KEY_CORRELATIVOS = "sqlite_inventario_venezuela_correlativos_v3";
+const STORAGE_KEY_FIADOS = "sqlite_bodega_fiados_v3";
+const STORAGE_KEY_CIERRES = "sqlite_bodega_cierres_caja_v3";
 const STORAGE_KEY_REMOTE_LICENSE = "sqlite_subscription_license_v1";
 const STORAGE_KEY_POS_OPERATIONAL_MODE = "sqlite_pos_operational_mode_v1";
 const STORAGE_KEY_USERS = "sqlite_pos_users_v1";
@@ -570,7 +570,7 @@ export function getStoredProducts(): Producto[] {
     const raw = localStorage.getItem(STORAGE_KEY_PRODUCTS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         const usedIds = new Set<number>();
         let nextSafeId = 1;
         const sanitized = parsed.map((item: any, idx: number) => {
@@ -590,8 +590,8 @@ export function getStoredProducts(): Producto[] {
   } catch (e) {
     console.error(e);
   }
-  scheduleCachedWrite(STORAGE_KEY_PRODUCTS, INITIAL_PRODUCTS, true);
-  return INITIAL_PRODUCTS;
+  scheduleCachedWrite(STORAGE_KEY_PRODUCTS, [], true);
+  return [];
 }
 
 export function saveProducts(products: Producto[]): void {
@@ -606,14 +606,16 @@ export function getStoredMovements(): Movimiento[] {
     const raw = localStorage.getItem(STORAGE_KEY_MOVEMENTS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      memoryStorageCache.set(STORAGE_KEY_MOVEMENTS, parsed);
-      return parsed;
+      if (Array.isArray(parsed)) {
+        memoryStorageCache.set(STORAGE_KEY_MOVEMENTS, parsed);
+        return parsed;
+      }
     }
   } catch (e) {
     console.error(e);
   }
-  scheduleCachedWrite(STORAGE_KEY_MOVEMENTS, INITIAL_MOVEMENTS, true);
-  return INITIAL_MOVEMENTS;
+  scheduleCachedWrite(STORAGE_KEY_MOVEMENTS, [], true);
+  return [];
 }
 
 export function saveMovements(movements: Movimiento[]): void {
@@ -761,7 +763,7 @@ export function getStoredSales(): Venta[] {
     const raw = localStorage.getItem(STORAGE_KEY_SALES);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         memoryStorageCache.set(STORAGE_KEY_SALES, parsed);
         return parsed;
       }
@@ -769,8 +771,8 @@ export function getStoredSales(): Venta[] {
   } catch (e) {
     console.error(e);
   }
-  scheduleCachedWrite(STORAGE_KEY_SALES, INITIAL_SALES, true);
-  return INITIAL_SALES;
+  scheduleCachedWrite(STORAGE_KEY_SALES, [], true);
+  return [];
 }
 
 export function saveSales(sales: Venta[]): void {
@@ -833,7 +835,7 @@ export function getCorrelativosFiscales(): { facturaNum: number; controlNum: num
   } catch (e) {
     console.error(e);
   }
-  const init = { facturaNum: 452, controlNum: 1890 };
+  const init = { facturaNum: 1, controlNum: 1 };
   localStorage.setItem(STORAGE_KEY_CORRELATIVOS, JSON.stringify(init));
   return init;
 }
@@ -941,14 +943,16 @@ export function getStoredFiados(): FiadoCliente[] {
     const raw = localStorage.getItem(STORAGE_KEY_FIADOS);
     if (raw) {
       const parsed = JSON.parse(raw);
-      memoryStorageCache.set(STORAGE_KEY_FIADOS, parsed);
-      return parsed;
+      if (Array.isArray(parsed)) {
+        memoryStorageCache.set(STORAGE_KEY_FIADOS, parsed);
+        return parsed;
+      }
     }
   } catch (e) {
     console.error(e);
   }
-  scheduleCachedWrite(STORAGE_KEY_FIADOS, INITIAL_FIADOS, true);
-  return INITIAL_FIADOS;
+  scheduleCachedWrite(STORAGE_KEY_FIADOS, [], true);
+  return [];
 }
 
 export function saveFiados(fiados: FiadoCliente[]): void {
@@ -1012,14 +1016,16 @@ export function getStoredCierresCaja(): CierreCajaRecord[] {
     const raw = localStorage.getItem(STORAGE_KEY_CIERRES);
     if (raw) {
       const parsed = JSON.parse(raw);
-      memoryStorageCache.set(STORAGE_KEY_CIERRES, parsed);
-      return parsed;
+      if (Array.isArray(parsed)) {
+        memoryStorageCache.set(STORAGE_KEY_CIERRES, parsed);
+        return parsed;
+      }
     }
   } catch (e) {
     console.error(e);
   }
-  scheduleCachedWrite(STORAGE_KEY_CIERRES, INITIAL_CIERRES, true);
-  return INITIAL_CIERRES;
+  scheduleCachedWrite(STORAGE_KEY_CIERRES, [], true);
+  return [];
 }
 
 export function saveCierresCaja(cierres: CierreCajaRecord[]): void {
@@ -1545,16 +1551,17 @@ export function renewClientSubscription(daysToAdd: number = 30): RemoteClientLic
 export function resetDatabaseToDefault(): void {
   clearMemoryStorageCache();
   scheduleCachedWrite(STORAGE_KEY_CATEGORIES, INITIAL_CATEGORIES, true);
-  scheduleCachedWrite(STORAGE_KEY_PRODUCTS, INITIAL_PRODUCTS, true);
-  scheduleCachedWrite(STORAGE_KEY_MOVEMENTS, INITIAL_MOVEMENTS, true);
-  scheduleCachedWrite(STORAGE_KEY_SALES, INITIAL_SALES, true);
-  scheduleCachedWrite(STORAGE_KEY_FIADOS, INITIAL_FIADOS, true);
+  scheduleCachedWrite(STORAGE_KEY_PRODUCTS, [], true);
+  scheduleCachedWrite(STORAGE_KEY_MOVEMENTS, [], true);
+  scheduleCachedWrite(STORAGE_KEY_SALES, [], true);
+  scheduleCachedWrite(STORAGE_KEY_FIADOS, [], true);
   scheduleCachedWrite(STORAGE_KEY_CIERRES, [], true);
+  scheduleCachedWrite(STORAGE_KEY_CLIENTES_DIRECTORIO, [], true);
   scheduleCachedWrite(STORAGE_KEY_USERS, INITIAL_USERS, true);
   scheduleCachedWrite(STORAGE_KEY_CURRENT_USER, INITIAL_USERS[0], true);
   scheduleCachedWrite(STORAGE_KEY_REMOTE_LICENSE, DEFAULT_REMOTE_LICENSE, true);
   localStorage.setItem(STORAGE_KEY_BCV_RATE, "36.50");
-  localStorage.setItem(STORAGE_KEY_CORRELATIVOS, JSON.stringify({ facturaNum: 452, controlNum: 1890 }));
+  localStorage.setItem(STORAGE_KEY_CORRELATIVOS, JSON.stringify({ facturaNum: 1, controlNum: 1 }));
 }
 
 // ============================================================================
@@ -1815,17 +1822,17 @@ export function saveCategories(categories: Categoria[]): void {
 // ============================================================================
 // CONFIGURACIÓN DE NEGOCIO DEL CLIENTE (PARA TICKETS, FACTURAS Y PERSONALIZACIÓN)
 // ============================================================================
-export const STORAGE_KEY_NEGOCIO_CONFIG = "sqlite_negocio_cliente_config_v1";
-export const STORAGE_KEY_EMISOR_FISCAL = "sqlite_emisor_fiscal_personalizado_v1";
+export const STORAGE_KEY_NEGOCIO_CONFIG = "sqlite_negocio_cliente_config_v2";
+export const STORAGE_KEY_EMISOR_FISCAL = "sqlite_emisor_fiscal_personalizado_v2";
 
 export const DEFAULT_NEGOCIO_CONFIG: NegocioClienteConfig = {
-  nombreComercial: "Inversiones y Víveres Don Pedro",
-  razonSocial: "INVERSIONES Y VÍVERES DON PEDRO, C.A.",
-  rif: "J-40918274-1",
-  direccion: "Av. Principal con Calle 4, Local N° 12, Casco Central",
-  telefono: "+58 412-5551234",
-  whatsappCobros: "+58 412-5551234",
-  pieTicket: "¡Gracias por su preferencia! Conserve este comprobante para cualquier cambio en 48h.",
+  nombreComercial: "",
+  razonSocial: "",
+  rif: "",
+  direccion: "",
+  telefono: "",
+  whatsappCobros: "",
+  pieTicket: "¡Gracias por su preferencia! Conserve este comprobante.",
   monedaDefecto: "USD",
   rubro: "bodega",
   alicuotaIva: 16,
@@ -1889,7 +1896,7 @@ export function getStoredEmisorFiscal(): EmisorFiscal {
 // ============================================================================
 // DIRECTORIO DE CLIENTES (CRM / CARTERA DE CLIENTES)
 // ============================================================================
-export const STORAGE_KEY_CLIENTES_DIRECTORIO = "sqlite_clientes_directorio_v1";
+export const STORAGE_KEY_CLIENTES_DIRECTORIO = "sqlite_clientes_directorio_v3";
 
 export const INITIAL_CLIENTES_DIRECTORIO: ClienteDirectorio[] = [
   {
@@ -1979,14 +1986,16 @@ export function getStoredClientes(): ClienteDirectorio[] {
     const raw = localStorage.getItem(STORAGE_KEY_CLIENTES_DIRECTORIO);
     if (raw) {
       const parsed = JSON.parse(raw);
-      memoryStorageCache.set(STORAGE_KEY_CLIENTES_DIRECTORIO, parsed);
-      return parsed;
+      if (Array.isArray(parsed)) {
+        memoryStorageCache.set(STORAGE_KEY_CLIENTES_DIRECTORIO, parsed);
+        return parsed;
+      }
     }
   } catch (e) {
     console.error("Error loading clientes:", e);
   }
-  scheduleCachedWrite(STORAGE_KEY_CLIENTES_DIRECTORIO, INITIAL_CLIENTES_DIRECTORIO, true);
-  return INITIAL_CLIENTES_DIRECTORIO;
+  scheduleCachedWrite(STORAGE_KEY_CLIENTES_DIRECTORIO, [], true);
+  return [];
 }
 
 export function saveClientes(clientes: ClienteDirectorio[]): void {
@@ -2148,11 +2157,14 @@ export function prepararSistemaParaNuevoCliente(
       catsToSave = TEMPLATE_CATEGORIES[rubro] || TEMPLATE_CATEGORIES.bodega;
       prodsToSave = [];
       saveFiados([]);
+      saveClientes([]);
+      localStorage.setItem(STORAGE_KEY_CORRELATIVOS, JSON.stringify({ facturaNum: 1, controlNum: 1 }));
     } else if (modo === "PLANTILLA") {
       // Catálogo precargado por rubro listo para vender
       catsToSave = TEMPLATE_CATEGORIES[rubro] || TEMPLATE_CATEGORIES.bodega;
       prodsToSave = TEMPLATE_PRODUCTS[rubro] || TEMPLATE_PRODUCTS.bodega;
       saveFiados([]);
+      saveClientes([]);
     } else {
       // Modo DEMO: datos completos para entrenamiento
       catsToSave = INITIAL_CATEGORIES;

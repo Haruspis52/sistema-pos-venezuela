@@ -791,7 +791,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
         {/* Quick Barcode Scanner / Product Search */}
         <div className="bg-[#1a1d24] border border-slate-800 rounded-xl p-3 relative space-y-2">
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input

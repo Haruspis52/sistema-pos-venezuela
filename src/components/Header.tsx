@@ -154,11 +154,11 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-[#11141a]/95 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 h-16 flex items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 min-h-16 py-2 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 lg:gap-3">
         {/* =================================================================== */}
         {/* ZONA 1 (IZQUIERDA): Marca, Edición y Estado de Conectividad */}
         {/* =================================================================== */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 min-w-0">
           {/* Logo del Sistema */}
           <div className="w-10 h-10 rounded-xl overflow-hidden border border-blue-400/30 bg-[#161a24] p-0.5 shadow-sm shadow-blue-950/40 shrink-0">
             <img
@@ -170,9 +170,9 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Nombre y Selector de Edición Directo */}
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-sm sm:text-base text-white tracking-tight">
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5 flex-nowrap">
+              <span className="font-extrabold text-sm sm:text-base text-white tracking-tight whitespace-nowrap">
                 FaradayPOS
               </span>
               <span className="text-slate-600 hidden sm:inline" aria-hidden="true">·</span>
@@ -184,26 +184,26 @@ export const Header: React.FC<HeaderProps> = ({
                   id="btn-switch-edition"
                   onClick={onOpenEditionSelector}
                   title="Cambiar edición del sistema: Bodega o Fiscal SENIAT"
-                  className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md transition-colors border border-transparent hover:border-slate-700 hover:bg-slate-800/60 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400"
+                  className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md transition-colors border border-transparent hover:border-slate-700 hover:bg-slate-800/60 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400 whitespace-nowrap shrink-0"
                 >
                   {currentEdition === "bodega" ? (
                     <>
-                      <Store className="w-3.5 h-3.5 text-amber-400" />
+                      <Store className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                       <span className="text-amber-300">Bodega & Abasto</span>
                     </>
                   ) : (
                     <>
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <span className="text-emerald-300">Fiscal SENIAT</span>
                     </>
                   )}
-                  <ChevronDown className="w-3 h-3 text-slate-500 ml-0.5" />
+                  <ChevronDown className="w-3 h-3 text-slate-500 ml-0.5 shrink-0" />
                 </button>
               )}
             </div>
 
             {/* Subtítulo de estado limpio y unboxed */}
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 whitespace-nowrap">
               <button
                 type="button"
                 onClick={() => setIsOfflineMode(!isOfflineMode)}
@@ -211,7 +211,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Clic para alternar entre modo en línea y modo local autónomo"
               >
                 <span
-                  className={`w-2 h-2 rounded-full transition-colors ${
+                  className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
                     isOfflineMode
                       ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
                       : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] animate-pulse"
@@ -222,8 +222,8 @@ export const Header: React.FC<HeaderProps> = ({
                   {isOfflineMode ? "Modo Local (Offline)" : "Servidor Local Activo"}
                 </span>
               </button>
-              <span className="text-slate-700 hidden sm:inline" aria-hidden="true">/</span>
-              <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
+              <span className="text-slate-700 hidden lg:inline" aria-hidden="true">/</span>
+              <span className="text-[10px] text-slate-500 font-mono hidden lg:inline">
                 Puerto :3000
               </span>
             </div>
@@ -233,19 +233,22 @@ export const Header: React.FC<HeaderProps> = ({
         {/* =================================================================== */}
         {/* ZONA 2 (CENTRAL): Widget Financiero de Tasa Oficial BCV */}
         {/* =================================================================== */}
-        <div className="flex items-center">
-          <div className="flex items-center gap-2 bg-[#161a22] border border-amber-500/25 px-2.5 sm:px-3 py-1.5 rounded-xl shadow-inner shadow-black/40">
+        <div className="flex items-center shrink-0">
+          <div
+            className="flex items-center gap-2 bg-[#161a22] border border-amber-500/25 px-2.5 sm:px-3 py-1 rounded-xl shadow-inner shadow-black/40 whitespace-nowrap"
+            title={bcvFechaValor ? `Tasa Oficial BCV (${bcvFechaValor})` : "Tasa Oficial BCV"}
+          >
             <div className="flex items-center gap-1.5">
               <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
                 <DollarSign className="w-3.5 h-3.5 text-amber-400" />
               </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="flex flex-col justify-center">
+                <div className="flex items-center gap-1.5 leading-tight">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
                     Tasa BCV
                   </span>
                   {bcvFechaValor && (
-                    <span className="text-[9px] text-amber-400/80 font-mono hidden md:inline">
+                    <span className="text-[9px] text-amber-400/80 font-mono hidden xl:inline truncate max-w-[140px]">
                       ({bcvFechaValor})
                     </span>
                   )}
@@ -277,13 +280,13 @@ export const Header: React.FC<HeaderProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-mono tabular-nums font-bold text-amber-300 text-sm sm:text-base leading-none">
+                  <div className="flex items-baseline gap-1.5 whitespace-nowrap leading-tight mt-0.5">
+                    <span className="font-mono tabular-nums font-bold text-amber-300 text-xs sm:text-sm leading-none whitespace-nowrap">
                       Bs. {bcvRate.toFixed(2)}
                     </span>
                     {bcvEurRate && bcvEurRate > 0 && (
-                      <span className="text-[10px] text-slate-400 font-mono tabular-nums hidden lg:inline">
-                        € {bcvEurRate.toFixed(2)}
+                      <span className="text-[10px] text-slate-400 font-mono tabular-nums hidden xl:inline whitespace-nowrap">
+                        · € {bcvEurRate.toFixed(2)}
                       </span>
                     )}
                   </div>
@@ -293,7 +296,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Acciones del BCV: Sincronizar y Editar */}
             {!isEditingBcv && (
-              <div className="flex items-center gap-0.5 ml-1 border-l border-slate-800 pl-1.5">
+              <div className="flex items-center gap-0.5 ml-1 border-l border-slate-800 pl-1.5 shrink-0">
                 {onRefreshBcv && (
                   <button
                     id="btn-sync-bcv"
@@ -323,14 +326,14 @@ export const Header: React.FC<HeaderProps> = ({
         {/* =================================================================== */}
         {/* ZONA 3 (DERECHA): Acciones Operativas, Usuario & Menú Desplegable */}
         {/* =================================================================== */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
           {/* Selector de Modo Operativo (Solo Inventario vs SmartPOS) */}
           {onOpenPosModeSelector && (
             <button
               id="btn-pos-mode"
               onClick={onOpenPosModeSelector}
               title="Cambiar Modo Operativo: Conectar terminal SmartPOS o Totalizar en Pantalla"
-              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap shrink-0 ${
                 posMode === "inventory_only"
                   ? "bg-[#181a20] text-slate-300 border-slate-700 hover:border-amber-500/50 hover:text-amber-300"
                   : "bg-blue-950/40 text-blue-300 border-blue-500/40 hover:bg-blue-900/50"
@@ -338,16 +341,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {posMode === "inventory_only" ? (
                 <>
-                  <ShoppingCart className="w-3.5 h-3.5 text-amber-400" />
+                  <ShoppingCart className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span className="font-mono">Solo Inventario</span>
                 </>
               ) : (
                 <>
-                  <Smartphone className="w-3.5 h-3.5 text-blue-400" />
+                  <Smartphone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                   <span className="font-mono">SmartPOS</span>
                 </>
               )}
-              <SlidersHorizontal className="w-3 h-3 text-slate-500 ml-0.5" />
+              <SlidersHorizontal className="w-3 h-3 text-slate-500 ml-0.5 shrink-0" />
             </button>
           )}
 
@@ -357,15 +360,15 @@ export const Header: React.FC<HeaderProps> = ({
               id="btn-user-management"
               onClick={onOpenUserManagement}
               title={`Usuario Activo: ${currentUser?.nombre_completo || 'Usuario'} (${currentUser?.rol || 'CAJERO'}). Clic para cambiar cajero.`}
-              className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-800 bg-[#161922] hover:bg-slate-800/60 text-slate-300 hover:text-white transition-all cursor-pointer"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-800 bg-[#161922] hover:bg-slate-800/60 text-slate-300 hover:text-white transition-all cursor-pointer whitespace-nowrap shrink-0"
             >
-              <div className="w-5 h-5 rounded-full bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-[10px] font-bold text-indigo-300">
+              <div className="w-5 h-5 rounded-full bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-[10px] font-bold text-indigo-300 shrink-0">
                 {(currentUser?.nombre_completo || currentUser?.username || "U")[0].toUpperCase()}
               </div>
-              <span className="font-mono text-xs truncate max-w-[80px]">
+              <span className="font-mono text-xs truncate max-w-[75px]">
                 {currentUser?.username || "Cajero"}
               </span>
-              <span className={`text-[9px] px-1 rounded font-mono uppercase font-bold ${
+              <span className={`text-[9px] px-1 rounded font-mono uppercase font-bold shrink-0 ${
                 currentUser?.rol === "ADMIN"
                   ? "bg-blue-900/60 text-blue-300 border border-blue-700/50"
                   : "bg-emerald-900/60 text-emerald-300 border border-emerald-700/50"
@@ -381,27 +384,27 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               onClick={onOpenKeyboardShortcuts}
               title="Ver Atajos de Teclado Rápido (F7 / Alt + H)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-700/80 bg-[#161a22] hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-700/80 bg-[#161a22] hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition-all cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Keyboard className="w-4 h-4 text-amber-400" />
+              <Keyboard className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="hidden xl:inline font-mono">F7 Atajos</span>
             </button>
           )}
-          <div className="relative" ref={toolsMenuRef}>
+          <div className="relative shrink-0" ref={toolsMenuRef}>
             <button
               id="btn-tools-menu"
               type="button"
               onClick={() => setIsToolsOpen(!isToolsOpen)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 isToolsOpen
                   ? "bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30"
                   : "bg-[#161a22] text-slate-300 border-slate-700/80 hover:bg-slate-800 hover:text-white"
               }`}
               title="Ajustes, respaldos, servidor y utilidades del sistema"
             >
-              <Settings2 className="w-3.5 h-3.5" />
+              <Settings2 className="w-3.5 h-3.5 shrink-0" />
               <span className="hidden sm:inline">Herramientas</span>
-              <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isToolsOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isToolsOpen ? "rotate-180" : ""}`} />
             </button>
 
             {/* Dropdown Panel */}

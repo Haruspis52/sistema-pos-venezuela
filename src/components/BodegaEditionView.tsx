@@ -69,6 +69,7 @@ import {
 
 interface BodegaEditionViewProps {
   products: Producto[];
+  sales?: Venta[];
   bcvRate: number;
   onUpdateProductStock?: (productId: number, newStock: number) => void;
   onRecordSale?: (sale: Venta) => void;
@@ -81,6 +82,7 @@ interface BodegaEditionViewProps {
 
 export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
   products,
+  sales = [],
   bcvRate,
   onUpdateProductStock,
   onRecordSale,
@@ -1273,6 +1275,79 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
     return fiadosList.reduce((sum, f) => sum + f.saldo_deuda_usd, 0);
   }, [fiadosList]);
 
+  // Totales esperados reales del turno actual (calculados a partir de las ventas del día)
+  const shiftExpectedTotals = useMemo(() => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const activeTodaySales = sales.filter(
+      (s) => s.estado !== "ANULADA" && (!s.fecha || s.fecha === todayStr)
+    );
+
+    let efectivoUsd = 0;
+    let efectivoVes = 0;
+    let pagoMovilVes = 0;
+    let puntoVes = 0;
+    let zelleUsd = 0;
+    let fiadoUsd = 0;
+
+    activeTodaySales.forEach((s) => {
+      if (s.pagos_mixtos && s.pagos_mixtos.length > 0) {
+        s.pagos_mixtos.forEach((pm) => {
+          const m = pm.metodo.toLowerCase();
+          if (m.includes("divisa") || (m.includes("efectivo") && pm.moneda === "USD")) {
+            efectivoUsd += pm.monto_usd;
+          } else if (m.includes("restante") || (m.includes("efectivo") && pm.moneda === "VES")) {
+            efectivoVes += pm.monto_ves;
+          } else if (m.includes("móvil") || m.includes("movil") || m.includes("transf")) {
+            pagoMovilVes += pm.monto_ves;
+          } else if (m.includes("punto") || m.includes("smartpos")) {
+            puntoVes += pm.monto_ves;
+          } else if (m.includes("zelle")) {
+            zelleUsd += pm.monto_usd;
+          }
+        });
+        return;
+      }
+
+      const m = (s.metodo_pago || "").toLowerCase();
+      if (m.includes("fiado")) {
+        fiadoUsd += s.total_usd;
+      } else if (m.includes("zelle")) {
+        zelleUsd += s.total_usd;
+      } else if (m.includes("divisa") || (m.includes("efectivo") && s.moneda_pago === "USD")) {
+        efectivoUsd += s.total_usd;
+      } else if (m.includes("efectivo") && s.moneda_pago === "VES") {
+        efectivoVes += s.total_ves;
+      } else if (m.includes("móvil") || m.includes("movil") || m.includes("transf")) {
+        pagoMovilVes += s.total_ves;
+      } else if (m.includes("punto") || m.includes("smartpos") || m.includes("avance")) {
+        puntoVes += s.total_ves;
+      } else if (s.moneda_pago === "USD") {
+        efectivoUsd += s.total_usd;
+      } else {
+        efectivoVes += s.total_ves;
+      }
+    });
+
+    const totalUsd =
+      efectivoUsd +
+      (bcvRate > 0 ? (efectivoVes + pagoMovilVes + puntoVes) / bcvRate : 0) +
+      zelleUsd +
+      fiadoUsd;
+    const totalVes = totalUsd * bcvRate;
+
+    return {
+      ventasCount: activeTodaySales.length,
+      efectivoUsd: Math.round(efectivoUsd * 100) / 100,
+      efectivoVes: Math.round(efectivoVes * 100) / 100,
+      pagoMovilVes: Math.round(pagoMovilVes * 100) / 100,
+      puntoVes: Math.round(puntoVes * 100) / 100,
+      zelleUsd: Math.round(zelleUsd * 100) / 100,
+      fiadoUsd: Math.round(fiadoUsd * 100) / 100,
+      totalUsd: Math.round(totalUsd * 100) / 100,
+      totalVes: Math.round(totalVes * 100) / 100,
+    };
+  }, [sales, bcvRate]);
+
   return (
     <div className="space-y-4">
       {/* Top Bodega Navigation Header */}
@@ -1398,12 +1473,12 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
       {/* 1. TAB: MOSTRADOR / VENTA RÁPIDA */}
       {/* ========================================================= */}
       {bodegaTab === "mostrador" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Left: Product Catalog & Quick Search (7 cols) */}
-          <div className="lg:col-span-7 space-y-3">
+          <div className="lg:col-span-7 min-w-0 space-y-3">
             {/* Search & Barcode Input */}
-            <div className="bg-[#14161f] border border-slate-800 p-3 rounded-2xl flex flex-wrap sm:flex-nowrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px]">
+            <div className="bg-[#14161f] border border-slate-800 p-3 rounded-2xl flex flex-wrap items-center gap-2 overflow-hidden">
+              <div className="relative flex-1 min-w-[220px]">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -1416,31 +1491,33 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 />
               </div>
 
-              {/* Botón Rápido: Dar Avance de Efectivo */}
-              <button
-                type="button"
-                onClick={() => setIsAvanceModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold shadow-md shadow-emerald-950/50 border border-emerald-400/40 shrink-0 transition-all cursor-pointer"
-                title="Dar Avance de Efectivo cobrando por Punto de Venta con porcentaje de ganancia configurable"
-              >
-                <Banknote className="w-4 h-4 text-emerald-100" />
-                <span>Dar Avance</span>
-                <span className="px-1.5 py-0.5 rounded bg-black/30 text-emerald-200 font-mono text-[10px]">
-                  +{avancePorcentaje}%
-                </span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {/* Botón Rápido: Dar Avance de Efectivo */}
+                <button
+                  type="button"
+                  onClick={() => setIsAvanceModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold shadow-md shadow-emerald-950/50 border border-emerald-400/40 whitespace-nowrap shrink-0 transition-all cursor-pointer"
+                  title="Dar Avance de Efectivo cobrando por Punto de Venta con porcentaje de ganancia configurable"
+                >
+                  <Banknote className="w-4 h-4 text-emerald-100 shrink-0" />
+                  <span>Dar Avance</span>
+                  <span className="px-1.5 py-0.5 rounded bg-black/30 text-emerald-200 font-mono text-[10px]">
+                    +{avancePorcentaje}%
+                  </span>
+                </button>
 
-              {/* Barcode Global Scanner Ready Badge */}
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-medium shrink-0" title="Escaneo global activado: Pase cualquier producto por el lector sin necesidad de hacer clic en el buscador">
-                <Barcode className="w-3.5 h-3.5 animate-pulse" />
-                <span className="hidden sm:inline">Lector Activo</span>
-              </div>
+                {/* Barcode Global Scanner Ready Badge */}
+                <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-medium whitespace-nowrap shrink-0" title="Escaneo global activado: Pase cualquier producto por el lector sin necesidad de hacer clic en el buscador">
+                  <Barcode className="w-3.5 h-3.5 animate-pulse shrink-0" />
+                  <span>Lector Activo</span>
+                </div>
 
-              {/* Tasa BCV Pill */}
-              <div className="bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl shrink-0 text-right">
-                <div className="text-[10px] text-amber-300 font-semibold">Tasa BCV del Día</div>
-                <div className="text-xs font-mono font-bold text-white">
-                  Bs. {bcvRate.toFixed(2)}
+                {/* Tasa BCV Pill */}
+                <div className="bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-xl whitespace-nowrap shrink-0 text-right">
+                  <div className="text-[10px] text-amber-300 font-semibold leading-tight">Tasa BCV del Día</div>
+                  <div className="text-xs font-mono font-bold text-white leading-tight">
+                    Bs. {bcvRate.toFixed(2)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1743,7 +1820,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
           </div>
 
           {/* Right: Mostrador Cart & Checkout Panel (5 cols) */}
-          <div className="lg:col-span-5 bg-[#12141a] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xl min-h-[500px]">
+          <div className="lg:col-span-5 min-w-0 bg-[#12141a] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xl min-h-[500px]">
             <div>
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2">
@@ -2383,32 +2460,32 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
                   <div className="bg-[#14161f] border border-slate-800 p-3 rounded-xl">
                     <div className="text-[11px] text-slate-400 font-medium">💵 Efectivo Dólares ($)</div>
-                    <div className="text-base font-bold text-amber-300 font-mono mt-1">$45.00</div>
+                    <div className="text-base font-bold text-amber-300 font-mono mt-1">${shiftExpectedTotals.efectivoUsd.toFixed(2)}</div>
                     <div className="text-[10px] text-slate-500 font-mono">Esperado en gaveta</div>
                   </div>
                   <div className="bg-[#14161f] border border-slate-800 p-3 rounded-xl">
                     <div className="text-[11px] text-slate-400 font-medium">🇻🇪 Efectivo Bolívares (Bs.)</div>
-                    <div className="text-base font-bold text-blue-300 font-mono mt-1">Bs. 3,850.00</div>
-                    <div className="text-[10px] text-slate-500 font-mono">≈ ${(3850 / bcvRate).toFixed(2)} USD</div>
+                    <div className="text-base font-bold text-blue-300 font-mono mt-1">Bs. {shiftExpectedTotals.efectivoVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">≈ ${(bcvRate > 0 ? shiftExpectedTotals.efectivoVes / bcvRate : 0).toFixed(2)} USD</div>
                   </div>
                   <div className="bg-[#14161f] border border-slate-800 p-3 rounded-xl">
                     <div className="text-[11px] text-slate-400 font-medium">📲 Pago Móvil / Transf.</div>
-                    <div className="text-base font-bold text-purple-300 font-mono mt-1">Bs. 8,420.00</div>
-                    <div className="text-[10px] text-slate-500 font-mono">≈ ${(8420 / bcvRate).toFixed(2)} USD</div>
+                    <div className="text-base font-bold text-purple-300 font-mono mt-1">Bs. {shiftExpectedTotals.pagoMovilVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">≈ ${(bcvRate > 0 ? shiftExpectedTotals.pagoMovilVes / bcvRate : 0).toFixed(2)} USD</div>
                   </div>
                   <div className="bg-[#14161f] border border-slate-800 p-3 rounded-xl">
                     <div className="text-[11px] text-slate-400 font-medium">💳 Punto / SmartPOS</div>
-                    <div className="text-base font-bold text-emerald-300 font-mono mt-1">Bs. 12,900.00</div>
-                    <div className="text-[10px] text-slate-500 font-mono">≈ ${(12900 / bcvRate).toFixed(2)} USD</div>
+                    <div className="text-base font-bold text-emerald-300 font-mono mt-1">Bs. {shiftExpectedTotals.puntoVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">≈ ${(bcvRate > 0 ? shiftExpectedTotals.puntoVes / bcvRate : 0).toFixed(2)} USD</div>
                   </div>
                   <div className="bg-[#14161f] border border-slate-800 p-3 rounded-xl">
                     <div className="text-[11px] text-slate-400 font-medium">🟢 Zelle / Divisas Dig.</div>
-                    <div className="text-base font-bold text-teal-300 font-mono mt-1">$15.00</div>
-                    <div className="text-[10px] text-slate-500 font-mono">≈ Bs. {(15 * bcvRate).toFixed(2)}</div>
+                    <div className="text-base font-bold text-teal-300 font-mono mt-1">${shiftExpectedTotals.zelleUsd.toFixed(2)}</div>
+                    <div className="text-[10px] text-slate-500 font-mono">≈ Bs. {(shiftExpectedTotals.zelleUsd * bcvRate).toFixed(2)}</div>
                   </div>
                   <div className="bg-[#14161f] border border-slate-800 p-3 rounded-xl">
                     <div className="text-[11px] text-slate-400 font-medium">📖 Ventas Fiadas (Libreta)</div>
-                    <div className="text-base font-bold text-rose-300 font-mono mt-1">$24.50</div>
+                    <div className="text-base font-bold text-rose-300 font-mono mt-1">${shiftExpectedTotals.fiadoUsd.toFixed(2)}</div>
                     <div className="text-[10px] text-slate-500 font-mono">Por cobrar</div>
                   </div>
                 </div>
@@ -2421,10 +2498,10 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   </div>
                   <div className="text-right font-mono flex items-center gap-3">
                     <span className="text-sm font-black text-amber-400 font-mono">
-                      ${(45.00 + 3850 / bcvRate + 8420 / bcvRate + 12900 / bcvRate + 15.00 + 24.50).toFixed(2)} USD
+                      ${shiftExpectedTotals.totalUsd.toFixed(2)} USD
                     </span>
                     <span className="text-xs text-slate-400">
-                      ≈ Bs. {((45.00 + 3850 / bcvRate + 8420 / bcvRate + 12900 / bcvRate + 15.00 + 24.50) * bcvRate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ≈ Bs. {shiftExpectedTotals.totalVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
@@ -2458,7 +2535,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                             e.target.value === "" ? "" : parseFloat(e.target.value)
                           )
                         }
-                        placeholder="45.00"
+                        placeholder="0.00"
                         className="w-full bg-[#14161f] border border-slate-700 rounded-xl pl-7 pr-3 py-2 text-xs text-white font-mono focus:border-amber-400 focus:outline-none"
                       />
                     </div>
@@ -2479,7 +2556,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                             e.target.value === "" ? "" : parseFloat(e.target.value)
                           )
                         }
-                        placeholder="3850.00"
+                        placeholder="0.00"
                         className="w-full bg-[#14161f] border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white font-mono focus:border-blue-400 focus:outline-none"
                       />
                     </div>
@@ -2517,10 +2594,10 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   <div className="p-3.5 rounded-xl border bg-[#14161f] border-slate-700 flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-xl ${
-                        Math.abs((typeof countedCashUsd === "number" ? countedCashUsd : 45.00) - 45.00) < 0.05 &&
-                        Math.abs((typeof countedCashVes === "number" ? countedCashVes : 3850.00) - 3850.00) < 1
+                        Math.abs((typeof countedCashUsd === "number" ? countedCashUsd : shiftExpectedTotals.efectivoUsd) - shiftExpectedTotals.efectivoUsd) < 0.05 &&
+                        Math.abs((typeof countedCashVes === "number" ? countedCashVes : shiftExpectedTotals.efectivoVes) - shiftExpectedTotals.efectivoVes) < 1
                           ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                          : ((typeof countedCashUsd === "number" ? countedCashUsd : 45.00) < 45.00 || (typeof countedCashVes === "number" ? countedCashVes : 3850.00) < 3850.00)
+                          : ((typeof countedCashUsd === "number" ? countedCashUsd : shiftExpectedTotals.efectivoUsd) < shiftExpectedTotals.efectivoUsd || (typeof countedCashVes === "number" ? countedCashVes : shiftExpectedTotals.efectivoVes) < shiftExpectedTotals.efectivoVes)
                           ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
                           : "bg-blue-500/20 text-blue-400 border border-blue-500/40"
                       }`}>
@@ -2530,23 +2607,23 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         <div className="text-xs font-bold text-white flex items-center gap-2">
                           <span>Estado del Cuadre de Gaveta:</span>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
-                            Math.abs((typeof countedCashUsd === "number" ? countedCashUsd : 45.00) - 45.00) < 0.05 &&
-                            Math.abs((typeof countedCashVes === "number" ? countedCashVes : 3850.00) - 3850.00) < 1
+                            Math.abs((typeof countedCashUsd === "number" ? countedCashUsd : shiftExpectedTotals.efectivoUsd) - shiftExpectedTotals.efectivoUsd) < 0.05 &&
+                            Math.abs((typeof countedCashVes === "number" ? countedCashVes : shiftExpectedTotals.efectivoVes) - shiftExpectedTotals.efectivoVes) < 1
                               ? "bg-emerald-500 text-slate-950"
-                              : ((typeof countedCashUsd === "number" ? countedCashUsd : 45.00) < 45.00 || (typeof countedCashVes === "number" ? countedCashVes : 3850.00) < 3850.00)
+                              : ((typeof countedCashUsd === "number" ? countedCashUsd : shiftExpectedTotals.efectivoUsd) < shiftExpectedTotals.efectivoUsd || (typeof countedCashVes === "number" ? countedCashVes : shiftExpectedTotals.efectivoVes) < shiftExpectedTotals.efectivoVes)
                               ? "bg-rose-500 text-white"
                               : "bg-blue-500 text-white"
                           }`}>
-                            {Math.abs((typeof countedCashUsd === "number" ? countedCashUsd : 45.00) - 45.00) < 0.05 &&
-                            Math.abs((typeof countedCashVes === "number" ? countedCashVes : 3850.00) - 3850.00) < 1
+                            {Math.abs((typeof countedCashUsd === "number" ? countedCashUsd : shiftExpectedTotals.efectivoUsd) - shiftExpectedTotals.efectivoUsd) < 0.05 &&
+                            Math.abs((typeof countedCashVes === "number" ? countedCashVes : shiftExpectedTotals.efectivoVes) - shiftExpectedTotals.efectivoVes) < 1
                               ? "CAJA CUADRADA EXACTA"
-                              : ((typeof countedCashUsd === "number" ? countedCashUsd : 45.00) < 45.00 || (typeof countedCashVes === "number" ? countedCashVes : 3850.00) < 3850.00)
+                              : ((typeof countedCashUsd === "number" ? countedCashUsd : shiftExpectedTotals.efectivoUsd) < shiftExpectedTotals.efectivoUsd || (typeof countedCashVes === "number" ? countedCashVes : shiftExpectedTotals.efectivoVes) < shiftExpectedTotals.efectivoVes)
                               ? "FALTANTE EN GAVETA"
                               : "SOBRANTE EN GAVETA"}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                          Diferencia Efectivo $: ${((typeof countedCashUsd === "number" ? countedCashUsd : 45.00) - 45.00).toFixed(2)} USD • Diferencia Bs: Bs. {((typeof countedCashVes === "number" ? countedCashVes : 3850.00) - 3850.00).toFixed(2)}
+                          Diferencia Efectivo $: ${((typeof countedCashUsd === "number" ? countedCashUsd : shiftExpectedTotals.efectivoUsd) - shiftExpectedTotals.efectivoUsd).toFixed(2)} USD • Diferencia Bs: Bs. {((typeof countedCashVes === "number" ? countedCashVes : shiftExpectedTotals.efectivoVes) - shiftExpectedTotals.efectivoVes).toFixed(2)}
                         </div>
                       </div>
                     </div>
@@ -2569,13 +2646,17 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   <button
                     type="button"
                     onClick={() => {
-                      const countUsd = typeof countedCashUsd === "number" ? countedCashUsd : 45.00;
-                      const countVes = typeof countedCashVes === "number" ? countedCashVes : 3850.00;
-                      const diffU = countUsd - 45.00 + (countVes - 3850.00) / bcvRate;
+                      const countUsd = typeof countedCashUsd === "number" ? countedCashUsd : shiftExpectedTotals.efectivoUsd;
+                      const countVes = typeof countedCashVes === "number" ? countedCashVes : shiftExpectedTotals.efectivoVes;
+                      const diffU = countUsd - shiftExpectedTotals.efectivoUsd + (bcvRate > 0 ? (countVes - shiftExpectedTotals.efectivoVes) / bcvRate : 0);
                       const diffV = diffU * bcvRate;
                       const status = Math.abs(diffU) < 0.05 ? "CUADRADA" : diffU < 0 ? "FALTANTE" : "SOBRANTE";
 
-                      const totalGenUsd = countUsd + countVes / bcvRate + 8420 / bcvRate + 12900 / bcvRate + 15.00 + 24.50;
+                      const totalGenUsd =
+                        countUsd +
+                        (bcvRate > 0 ? (countVes + shiftExpectedTotals.pagoMovilVes + shiftExpectedTotals.puntoVes) / bcvRate : 0) +
+                        shiftExpectedTotals.zelleUsd +
+                        shiftExpectedTotals.fiadoUsd;
                       const totalGenVes = totalGenUsd * bcvRate;
 
                       const nuevoCierre: CierreCajaRecord = {
@@ -2585,15 +2666,15 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         hora_cierre: new Date().toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit", hour12: true }),
                         cajero: cajeroNombre.trim() || currentUser?.nombre_completo || "Cajero Principal",
                         tasa_bcv: bcvRate,
-                        ventas_count: 26,
-                        esperado_usd: 165.40,
-                        esperado_ves: 165.40 * bcvRate,
+                        ventas_count: shiftExpectedTotals.ventasCount,
+                        esperado_usd: shiftExpectedTotals.totalUsd,
+                        esperado_ves: shiftExpectedTotals.totalVes,
                         total_efectivo_usd: countUsd,
                         total_efectivo_ves: countVes,
-                        total_pago_movil_ves: 8420.00,
-                        total_punto_ves: 12900.00,
-                        total_zelle_usd: 15.00,
-                        total_fiado_usd: 24.50,
+                        total_pago_movil_ves: shiftExpectedTotals.pagoMovilVes,
+                        total_punto_ves: shiftExpectedTotals.puntoVes,
+                        total_zelle_usd: shiftExpectedTotals.zelleUsd,
+                        total_fiado_usd: shiftExpectedTotals.fiadoUsd,
                         total_general_usd: parseFloat(totalGenUsd.toFixed(2)),
                         total_general_ves: parseFloat(totalGenVes.toFixed(2)),
                         diferencia_usd: parseFloat(diffU.toFixed(2)),

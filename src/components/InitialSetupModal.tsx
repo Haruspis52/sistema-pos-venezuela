@@ -39,6 +39,7 @@ import {
   revokeFiscalEdition,
   parseContractedEdition,
   getCuotaMensualPorEdicion,
+  prepararSistemaParaNuevoCliente,
 } from "../mockDb";
 import {
   verifyLicenseOnline,
@@ -105,15 +106,15 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
   const [targetSetupEdition, setTargetSetupEdition] = useState<"bodega" | "fiscal">("fiscal");
   const [fiscalCodeInput, setFiscalCodeInput] = useState<string>("");
 
-  // Estado de Datos del Negocio (el cliente los introduce directamente)
+  // Estado de Datos del Negocio (vacío por defecto en primera instalación)
   const [config, setConfig] = useState<NegocioClienteConfig>({
     ...initialConfig,
-    nombreComercial: initialConfig.nombreComercial || "Mi Comercio y Víveres",
-    razonSocial: initialConfig.razonSocial || "INVERSIONES Y COMERCIO, C.A.",
-    rif: initialConfig.rif || "J-40918274-1",
-    direccion: initialConfig.direccion || "Av. Principal, Local N° 1, Casco Central",
-    telefono: initialConfig.telefono || "+58 412-5551234",
-    whatsappCobros: initialConfig.whatsappCobros || "+58 412-5551234",
+    nombreComercial: initialConfig.nombreComercial || "",
+    razonSocial: initialConfig.razonSocial || "",
+    rif: initialConfig.rif || "",
+    direccion: initialConfig.direccion || "",
+    telefono: initialConfig.telefono || "",
+    whatsappCobros: initialConfig.whatsappCobros || "",
     pieTicket: initialConfig.pieTicket || "¡Gracias por su compra! Conserve este comprobante.",
   });
 
@@ -307,7 +308,8 @@ export const InitialSetupModal: React.FC<InitialSetupModalProps> = ({
         ? "ambas"
         : finalActiveEdition;
 
-    // 1. Guardar preferencias comerciales en almacenamiento local
+    // 1. Preparar base de datos limpia (0 artículos, 0 ventas, 0 movimientos, 0 fiados, 0 cierres) y guardar configuración
+    prepararSistemaParaNuevoCliente("LIMPIO", config.rubro || "bodega", config);
     saveStoredNegocioConfig(config);
     saveAppEdition(finalActiveEdition);
     savePosOperationalMode(selectedPosMode);
