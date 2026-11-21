@@ -188,7 +188,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                           ? "bg-[#7B61C9] text-white faraday-keep-white border-white/60"
                           : user.rol === "SUPERVISOR"
                           ? "bg-[#248F78] text-white faraday-keep-white border-white/60"
-                          : "bg-[#B85A3A] text-white faraday-keep-white border-white/70"
+                          : "bg-[#E09F3E] text-[#222629] border-white/70"
                       } flex items-center justify-center font-extrabold text-base shrink-0 shadow-sm`}
                     >
                       {user.nombre_completo.charAt(0)}
@@ -206,7 +206,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                               ? "bg-[#7B61C9]/15 text-[#7B61C9] border-[#7B61C9]/35"
                               : user.rol === "SUPERVISOR"
                               ? "bg-[#248F78]/15 text-[#248F78] border-[#248F78]/35"
-                              : "bg-[#C66B49]/18 text-[#9B4628] border-[#C66B49]/45"
+                              : "bg-[#E09F3E]/20 text-[#9A6310] border-[#E09F3E]/50"
                           }`}
                         >
                           {user.rol === "ADMIN"
@@ -242,7 +242,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                         ? "bg-[#7B61C9] text-white faraday-keep-white border-white/60"
                         : selectedUser.rol === "SUPERVISOR"
                         ? "bg-[#248F78] text-white faraday-keep-white border-white/60"
-                        : "bg-[#B85A3A] text-white faraday-keep-white border-white/70"
+                        : "bg-[#E09F3E] text-[#222629] border-white/70"
                     } flex items-center justify-center font-extrabold text-base`}
                   >
                     {selectedUser.nombre_completo.charAt(0)}
@@ -252,7 +252,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                       {selectedUser.nombre_completo}
                     </div>
                     <div className="text-[10.5px] text-[#5C646D] font-mono truncate">
-                      Rol: <strong className="text-[#9B4628]">{selectedUser.rol}</strong> (@{selectedUser.username})
+                      Rol: <strong className="text-[#9A6310]">{selectedUser.rol}</strong> (@{selectedUser.username})
                     </div>
                   </div>
                 </div>
@@ -303,7 +303,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                     autoFocus
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    className="w-full bg-white/70 border border-white/80 focus:border-[#C66B49] rounded-xl py-3 px-4 text-center text-2xl font-mono font-extrabold text-[#222629] tracking-[0.4em] focus:outline-none transition-colors shadow-inner"
+                    className="w-full bg-white/70 border border-white/80 focus:border-[#E09F3E] rounded-xl py-3 px-4 text-center text-2xl font-mono font-extrabold text-[#222629] tracking-[0.4em] focus:outline-none transition-colors shadow-inner"
                   />
                   <button
                     type="button"
@@ -357,7 +357,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                 <button
                   type="submit"
                   disabled={!pin}
-                  className="w-full py-3 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] text-white faraday-keep-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#B85A3A]/30 border border-white/60 transition-all disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer mt-2"
+                  className="w-full py-3 rounded-xl bg-[#E09F3E] hover:bg-[#CC8B2A] text-[#222629] font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#E09F3E]/30 border border-white/60 transition-all disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer mt-2"
                 >
                   <LogIn className="w-4 h-4" />
                   <span>Iniciar Sesión como {selectedUser.nombre_completo.split(" ")[0]}</span>

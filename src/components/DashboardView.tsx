@@ -276,7 +276,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }));
   }, [topProductsData, currencyMode]);
 
-  const barColors = ["#248F78", "#7B61C9", "#C66B49", "#68B8A6", "#A592DC"];
+  const barColors = ["#248F78", "#7B61C9", "#E09F3E", "#68B8A6", "#A592DC"];
 
   return (
     <div className="space-y-3" id="dashboard-view-root">
@@ -425,7 +425,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="faraday-glass-card rounded-2xl p-3.5 flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between text-[#5C646D] text-xs mb-1.5">
             <span className="font-bold uppercase tracking-wider text-[10.5px]">Utilidad Bruta Calculada</span>
-            <span className="p-1.5 rounded-lg bg-[#C66B49]/18 text-[#9B4628] border border-[#C66B49]/35">
+            <span className="p-1.5 rounded-lg bg-[#E09F3E]/18 text-[#9A6310] border border-[#E09F3E]/40">
               <TrendingUp className="w-3.5 h-3.5" />
             </span>
           </div>
@@ -701,7 +701,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="lg:col-span-8 faraday-glass-card rounded-2xl p-3.5 flex flex-col">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#222629]/10 pb-2 mb-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="p-1.5 rounded-lg bg-[#C66B49]/18 text-[#9B4628] border border-[#C66B49]/35 shrink-0">
+              <span className="p-1.5 rounded-lg bg-[#E09F3E]/18 text-[#9A6310] border border-[#E09F3E]/40 shrink-0">
                 <Award className="w-3.5 h-3.5" />
               </span>
               <div className="min-w-0">
@@ -744,7 +744,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <tbody className="divide-y divide-[#222629]/8 font-mono">
                   {topProductsData.map((item, idx) => {
                     const medalColors = [
-                      "text-[#9B4628] bg-[#C66B49]/22 border-[#C66B49]/45",
+                      "text-[#9A6310] bg-[#E09F3E]/22 border-[#E09F3E]/50",
                       "text-[#222629] bg-white/80 border-[#5C646D]/30",
                       "text-[#5B43AB] bg-[#7B61C9]/15 border-[#7B61C9]/35",
                       "text-[#1D7A66] bg-[#248F78]/15 border-[#248F78]/35",
@@ -796,7 +796,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   item.margenPorcentaje >= 30
                                     ? "bg-[#248F78]/15 text-[#1D7A66] border border-[#248F78]/30"
                                     : item.margenPorcentaje >= 15
-                                    ? "bg-[#C66B49]/18 text-[#9B4628] border border-[#C66B49]/35"
+                                    ? "bg-[#E09F3E]/18 text-[#9A6310] border border-[#E09F3E]/40"
                                     : "bg-rose-500/15 text-[#B42E46] border border-rose-500/30"
                                 }`}
                               >
@@ -830,7 +830,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   expiringProducts.some((x) => x.status === "EXPIRED")
                     ? "bg-rose-500/15 text-[#B42E46] border-rose-500/30"
                     : expiringProducts.length > 0
-                    ? "bg-[#C66B49]/18 text-[#9B4628] border-[#C66B49]/35"
+                    ? "bg-[#E09F3E]/18 text-[#9A6310] border-[#E09F3E]/40"
                     : "bg-[#248F78]/15 text-[#248F78] border-[#248F78]/25"
                 }`}
               >
@@ -851,7 +851,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   ? "bg-[#248F78]/15 text-[#1D7A66] border-[#248F78]/30"
                   : expiringProducts.some((x) => x.status === "EXPIRED")
                   ? "bg-rose-500/15 text-[#B42E46] border-rose-500/35"
-                  : "bg-[#C66B49]/18 text-[#9B4628] border-[#C66B49]/40"
+                  : "bg-[#E09F3E]/18 text-[#9A6310] border-[#E09F3E]/45"
               }`}
             >
               {expiringProducts.length} {expiringProducts.length === 1 ? "alerta" : "alertas"}
@@ -882,7 +882,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className={`p-2.5 rounded-xl border flex flex-col justify-between gap-1.5 ${
                     status === "EXPIRED"
                       ? "bg-rose-500/10 border-rose-500/35"
-                      : "bg-[#C66B49]/12 border-[#C66B49]/40"
+                      : "bg-[#E09F3E]/12 border-[#E09F3E]/45"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -896,7 +896,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 ${
                         status === "EXPIRED"
                           ? "bg-rose-600 text-white faraday-keep-white"
-                          : "bg-[#B85A3A] text-white faraday-keep-white"
+                          : "bg-[#E09F3E] text-[#222629]"
                       }`}
                     >
                       {status === "EXPIRED"
@@ -910,7 +910,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span className="text-[#5C646D]">
                       Stock: <strong className="text-[#222629]">{product.stock_actual} {product.unidad_medida}</strong>
                     </span>
-                    <span className={status === "EXPIRED" ? "text-[#B42E46] font-bold" : "text-[#9B4628] font-bold"}>
+                    <span className={status === "EXPIRED" ? "text-[#B42E46] font-bold" : "text-[#9A6310] font-bold"}>
                       Vence: {formattedDate}
                     </span>
                   </div>

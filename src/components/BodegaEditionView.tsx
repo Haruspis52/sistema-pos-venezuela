@@ -1364,7 +1364,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
       {!activeTab && (
         <div className="bg-[#12141a] border border-amber-500/25 rounded-2xl px-3.5 py-2 flex flex-wrap items-center justify-between gap-2.5 shadow-md">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-[#B85A3A] flex items-center justify-center text-white faraday-keep-white shadow-sm shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-[#E09F3E] flex items-center justify-center text-[#222629] shadow-sm shrink-0">
               <Store className="w-4 h-4" />
             </div>
             <h2 className="text-sm font-bold text-white truncate">
@@ -1377,7 +1377,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               onClick={() => setBodegaTab("mostrador")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 bodegaTab === "mostrador"
-                  ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-extrabold"
+                  ? "bg-[#E09F3E] text-[#222629] shadow-sm font-extrabold"
                   : "text-[#5C646D] hover:text-[#222629] hover:bg-white/60"
               }`}
             >
@@ -1388,7 +1388,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               onClick={() => setBodegaTab("fiados")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 bodegaTab === "fiados"
-                  ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-extrabold"
+                  ? "bg-[#E09F3E] text-[#222629] shadow-sm font-extrabold"
                   : "text-[#5C646D] hover:text-[#222629] hover:bg-white/60"
               }`}
             >
@@ -1399,7 +1399,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               onClick={() => setBodegaTab("caja")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 bodegaTab === "caja"
-                  ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-extrabold"
+                  ? "bg-[#E09F3E] text-[#222629] shadow-sm font-extrabold"
                   : "text-[#5C646D] hover:text-[#222629] hover:bg-white/60"
               }`}
             >
@@ -1410,7 +1410,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               onClick={() => setBodegaTab("etiquetas")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 bodegaTab === "etiquetas"
-                  ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-extrabold"
+                  ? "bg-[#E09F3E] text-[#222629] shadow-sm font-extrabold"
                   : "text-[#5C646D] hover:text-[#222629] hover:bg-white/60"
               }`}
             >
@@ -1438,7 +1438,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   value={searchProduct}
                   onChange={(e) => setSearchProduct(e.target.value)}
                   placeholder="Escanear código de barras o escribir producto..."
-                  className="w-full bg-white/65 border border-white/75 rounded-xl pl-9 pr-3 py-1.5 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#C66B49] focus:outline-none shadow-inner"
+                  className="w-full bg-white/65 border border-white/75 rounded-xl pl-9 pr-3 py-1.5 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#E09F3E] focus:outline-none shadow-inner"
                   autoFocus
                 />
               </div>
@@ -1454,7 +1454,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     }}
                     className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-colors ${
                       mostradorViewMode === "grid"
-                        ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm"
+                        ? "bg-[#E09F3E] text-[#222629] shadow-sm"
                         : "text-[#5C646D] hover:text-[#222629]"
                     }`}
                     title="Vista de tarjetas en cuadrícula"
@@ -1469,7 +1469,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     }}
                     className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-colors ${
                       mostradorViewMode === "table"
-                        ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm"
+                        ? "bg-[#E09F3E] text-[#222629] shadow-sm"
                         : "text-[#5C646D] hover:text-[#222629]"
                     }`}
                     title="Vista de lista con tamaño de columnas configurable"
@@ -1506,11 +1506,11 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 <div
                   className={`flex items-center gap-1 rounded-xl px-2 py-1 border transition-colors min-w-0 ${
                     selectedCategory !== "TODAS"
-                      ? "bg-[#C66B49]/22 border-[#C66B49]/65 text-[#222629]"
+                      ? "bg-[#E09F3E]/22 border-[#E09F3E]/70 text-[#222629]"
                       : "bg-white/50 border-white/65 text-[#222629]"
                   }`}
                 >
-                  <Tag className="w-3 h-3 text-[#B85A3A] shrink-0" />
+                  <Tag className="w-3 h-3 text-[#9A6310] shrink-0" />
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
@@ -1526,7 +1526,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 </div>
 
                 <div className="flex items-center gap-1 bg-white/50 border border-white/65 rounded-xl px-2 py-1 text-[#222629]">
-                  <ArrowUpDown className="w-3 h-3 text-[#B85A3A] shrink-0" />
+                  <ArrowUpDown className="w-3 h-3 text-[#9A6310] shrink-0" />
                   <select
                     value={bodegaSort}
                     onChange={(e) => setBodegaSort(e.target.value as any)}
@@ -1580,7 +1580,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
             {/* Products Grid, Onboarding Empty State (Point 4), or Resizable Table */}
             {mostradorPagination.totalItems === 0 ? (
               <div className="faraday-glass-panel border border-dashed border-white/70 rounded-2xl p-8 text-center space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-[#C66B49]/18 border border-[#C66B49]/40 flex items-center justify-center text-[#B85A3A] mx-auto shadow-inner">
+                <div className="w-14 h-14 rounded-2xl bg-[#E09F3E]/20 border border-[#E09F3E]/45 flex items-center justify-center text-[#9A6310] mx-auto shadow-inner">
                   <Store className="w-7 h-7" />
                 </div>
                 {products.length === 0 ? (
@@ -1598,7 +1598,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         <button
                           type="button"
                           onClick={onOpenCatalog}
-                          className="px-4 py-2.5 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] text-white faraday-keep-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-[#B85A3A]/30 border border-white/60 transition-all cursor-pointer"
+                          className="px-4 py-2.5 rounded-xl bg-[#E09F3E] hover:bg-[#CC8B2A] text-[#222629] font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-[#E09F3E]/30 border border-white/60 transition-all cursor-pointer"
                         >
                           <Plus className="w-4 h-4" />
                           <span>Agregar o Importar Productos (Catálogo)</span>
@@ -1632,7 +1632,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         setSearchProduct("");
                         setSelectedCategory("TODAS");
                       }}
-                      className="px-4 py-2 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] text-white faraday-keep-white text-xs font-extrabold border border-white/60 transition-colors cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-[#E09F3E] hover:bg-[#CC8B2A] text-[#222629] text-xs font-extrabold border border-white/60 transition-colors cursor-pointer"
                     >
                       Limpiar filtros de búsqueda
                     </button>
@@ -1685,7 +1685,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
 
                         <div className="mt-2.5 pt-1.5 border-t border-white/60 flex items-end justify-between">
                           <div>
-                            <div className="text-sm font-extrabold text-[#B85A3A] font-mono">
+                            <div className="text-sm font-extrabold text-[#9A6310] font-mono">
                               ${p.precio_venta.toFixed(2)}
                             </div>
                             <div className="text-[10px] text-[#5C646D] font-mono font-medium">
@@ -1889,7 +1889,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                           onClick={() =>
                             handleUpdateCartQuantity(item.producto.id, -1)
                           }
-                          className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#B85A3A] text-[#222629] hover:text-white font-bold text-xs transition-colors cursor-pointer"
+                          className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#E09F3E] text-[#222629] font-bold text-xs transition-colors cursor-pointer"
                         >
                           -
                         </button>
@@ -1900,14 +1900,14 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                           onClick={() =>
                             handleUpdateCartQuantity(item.producto.id, 1)
                           }
-                          className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#B85A3A] text-[#222629] hover:text-white font-bold text-xs transition-colors cursor-pointer"
+                          className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#E09F3E] text-[#222629] font-bold text-xs transition-colors cursor-pointer"
                         >
                           +
                         </button>
                       </div>
 
                       <div className="text-right font-mono min-w-[70px]">
-                        <div className="text-xs font-extrabold text-[#B85A3A]">
+                        <div className="text-xs font-extrabold text-[#9A6310]">
                           ${item.subtotal.toFixed(2)}
                         </div>
                         <div className="text-[10px] text-[#5C646D] font-medium">
@@ -1927,7 +1927,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   <span className="text-xs text-[#222629] font-bold">
                     TOTAL EN DÓLARES:
                   </span>
-                  <span className="text-lg font-extrabold text-[#B85A3A] font-mono">
+                  <span className="text-lg font-extrabold text-[#9A6310] font-mono">
                     ${cartTotalUsd.toFixed(2)} USD
                   </span>
                 </div>
@@ -1943,7 +1943,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 </div>
               </div>
 
-              {/* Action Buttons: Dar Avance de Efectivo (#248F78) & Facturar Venta (#B85A3A) */}
+              {/* Action Buttons: Dar Avance de Efectivo (#248F78) & Facturar Venta (#E09F3E) */}
               <div className="space-y-2">
                 <button
                   type="button"
@@ -1960,7 +1960,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   </span>
                 </button>
 
-                {/* Big Facturar Venta Button (Terracota Cálido #B85A3A) */}
+                {/* Big Facturar Venta Button (Ámbar Dorado #E09F3E) */}
                 <button
                   type="button"
                   id="btn-open-pay-modal"
@@ -1969,7 +1969,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     setIsPayModalOpen(true);
                   }}
                   disabled={cart.length === 0}
-                  className="w-full py-3.5 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] disabled:opacity-45 disabled:hover:bg-[#B85A3A] text-white faraday-keep-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#B85A3A]/30 border border-white/60 transition-all active:scale-[0.99] cursor-pointer"
+                  className="w-full py-3.5 rounded-xl bg-[#E09F3E] hover:bg-[#CC8B2A] disabled:opacity-45 disabled:hover:bg-[#E09F3E] text-[#222629] font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#E09F3E]/30 border border-white/60 transition-all active:scale-[0.99] cursor-pointer"
                 >
                   <DollarSign className="w-5 h-5" />
                   <span>Facturar Venta</span>
@@ -2388,7 +2388,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 onClick={() => setCajaSubTab("actual")}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   cajaSubTab === "actual"
-                    ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-black"
+                    ? "bg-[#E09F3E] text-[#222629] shadow-sm font-black"
                     : "bg-white/60 hover:bg-white/90 text-[#222629] border border-white/75"
                 }`}
               >
@@ -2401,11 +2401,11 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 onClick={() => setCajaSubTab("historial")}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   cajaSubTab === "historial"
-                    ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-black"
+                    ? "bg-[#E09F3E] text-[#222629] shadow-sm font-black"
                     : "bg-white/60 hover:bg-white/90 text-[#222629] border border-white/75"
                 }`}
               >
-                <HistoryIcon className={`w-4 h-4 ${cajaSubTab === "historial" ? "text-white" : "text-[#9B4628]"}`} />
+                <HistoryIcon className={`w-4 h-4 ${cajaSubTab === "historial" ? "text-[#222629]" : "text-[#9A6310]"}`} />
                 <span>Historial de Cierres Anteriores</span>
                 <span
                   className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
@@ -2934,7 +2934,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     }}
                     className={`w-6 h-5 rounded font-mono font-bold cursor-pointer transition-colors ${
                       anaquelGridCols === cols
-                        ? "bg-[#B85A3A] text-white faraday-keep-white shadow-xs"
+                        ? "bg-[#E09F3E] text-[#222629] shadow-xs"
                         : "text-[#5C646D] hover:text-[#222629] bg-white/70 hover:bg-white"
                     }`}
                   >
@@ -3970,7 +3970,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
           <div className="bg-[#12141a] border border-white/80 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
             <div className="bg-white/50 px-4 py-3 border-b border-white/75 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-[#222629] font-bold text-sm">
-                <UserPlus className="w-4 h-4 text-[#9B4628]" />
+                <UserPlus className="w-4 h-4 text-[#9A6310]" />
                 <span>Agregar Vecino a la Libreta de Fiados</span>
               </div>
               <button
@@ -3994,7 +3994,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     value={newFiadoNombre}
                     onChange={(e) => setNewFiadoNombre(e.target.value)}
                     placeholder="Ej: Doña Rosa (Casa #5)"
-                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#C66B49] focus:outline-none"
+                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#E09F3E] focus:outline-none"
                     autoFocus
                   />
                 </div>
@@ -4008,7 +4008,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     value={newFiadoTelefono}
                     onChange={(e) => setNewFiadoTelefono(e.target.value)}
                     placeholder="Ej: 0414-9876543"
-                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#C66B49] focus:outline-none"
+                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#E09F3E] focus:outline-none"
                   />
                 </div>
 
@@ -4021,15 +4021,15 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     value={newFiadoDireccion}
                     onChange={(e) => setNewFiadoDireccion(e.target.value)}
                     placeholder="Ej: Vereda 3, Casa #14"
-                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#C66B49] focus:outline-none"
+                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#E09F3E] focus:outline-none"
                   />
                 </div>
 
                 {/* Campo para colocar el monto de deuda directamente */}
-                <div className="bg-[#C66B49]/12 p-3 rounded-xl border border-[#C66B49]/35 space-y-1.5">
+                <div className="bg-[#E09F3E]/12 p-3 rounded-xl border border-[#E09F3E]/40 space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-[#9B4628] font-bold flex items-center gap-1.5">
-                      <DollarSign className="w-3.5 h-3.5 text-[#9B4628]" />
+                    <label className="text-xs text-[#9A6310] font-bold flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5 text-[#9A6310]" />
                       <span>Monto de Deuda Inicial ($ USD):</span>
                     </label>
                     <span className="text-[10px] text-[#5C646D] font-mono">
@@ -4051,7 +4051,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         )
                       }
                       placeholder="0.00 (Ej: 15.00)"
-                      className="w-full bg-white/80 border border-[#C66B49]/50 rounded-xl pl-7 pr-3 py-2 text-sm text-[#222629] placeholder-[#5C646D] font-mono font-bold focus:border-[#C66B49] focus:outline-none"
+                      className="w-full bg-white/80 border border-[#E09F3E]/55 rounded-xl pl-7 pr-3 py-2 text-sm text-[#222629] placeholder-[#5C646D] font-mono font-bold focus:border-[#E09F3E] focus:outline-none"
                     />
                   </div>
                   {typeof newFiadoDeudaInicial === "number" && newFiadoDeudaInicial > 0 && (
@@ -4075,7 +4075,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] text-white faraday-keep-white text-xs font-extrabold shadow-sm cursor-pointer transition-colors"
+                  className="px-5 py-2 rounded-xl bg-[#E09F3E] hover:bg-[#CC8B2A] text-[#222629] text-xs font-extrabold shadow-sm cursor-pointer transition-colors"
                 >
                   + Guardar Vecino
                 </button>

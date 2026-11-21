@@ -156,7 +156,7 @@ export const GeminiInvoiceView: React.FC<GeminiInvoiceViewProps> = ({
                   API Key Personalizada Activa
                 </span>
               ) : (
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#C66B49]/18 text-[#9B4628] border border-[#C66B49]/45 font-bold">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#E09F3E]/20 text-[#9A6310] border border-[#E09F3E]/45 font-bold">
                   API Key por Configurar
                 </span>
               )}
@@ -180,7 +180,7 @@ export const GeminiInvoiceView: React.FC<GeminiInvoiceViewProps> = ({
                 : "bg-[#7B61C9] hover:bg-[#6A50B8] text-white faraday-keep-white border-[#7B61C9] shadow-[#7B61C9]/25"
             }`}
           >
-            <KeyRound className={`w-4 h-4 ${customApiKey ? "text-[#9B4628]" : "text-[#FDE68A]"}`} />
+            <KeyRound className={`w-4 h-4 ${customApiKey ? "text-[#9A6310]" : "text-[#FDE68A]"}`} />
             <span>{customApiKey ? "Cambiar API Key de Gemini" : "Ingresar API Key de Gemini"}</span>
           </button>
         </div>

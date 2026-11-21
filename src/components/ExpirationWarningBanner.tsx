@@ -49,16 +49,16 @@ export const ExpirationWarningBanner: React.FC<ExpirationWarningBannerProps> = (
   );
 
   return (
-    <div className="mb-3 rounded-2xl border-2 border-[#C66B49] faraday-glass-panel bg-gradient-to-r from-[#C66B49]/20 via-[#EEE8DB]/75 to-[#C66B49]/20 p-3.5 shadow-lg text-[#222629] animate-in fade-in duration-300">
+    <div className="mb-3 rounded-2xl border-2 border-[#E09F3E] faraday-glass-panel bg-gradient-to-r from-[#E09F3E]/20 via-[#EEE8DB]/75 to-[#E09F3E]/20 p-3.5 shadow-lg text-[#222629] animate-in fade-in duration-300">
       {/* Encabezado del Aviso */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#C66B49]/20 border border-[#C66B49]/55 flex items-center justify-center text-[#B85A3A] shrink-0 animate-pulse">
+          <div className="w-10 h-10 rounded-xl bg-[#E09F3E]/20 border border-[#E09F3E]/55 flex items-center justify-center text-[#9A6310] shrink-0 animate-pulse">
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2 py-0.5 rounded-full bg-[#B85A3A] text-white faraday-keep-white text-[10px] font-black uppercase font-mono tracking-wider">
+              <span className="px-2 py-0.5 rounded-full bg-[#E09F3E] text-[#222629] text-[10px] font-black uppercase font-mono tracking-wider">
                 Próxima Fecha de Corte
               </span>
               <span className="text-xs font-extrabold text-[#222629] font-mono">

@@ -216,11 +216,11 @@ export const Header: React.FC<HeaderProps> = ({
                   id="btn-switch-edition"
                   onClick={onOpenEditionSelector}
                   title="Cambiar edición del sistema: Bodega o Fiscal SENIAT"
-                  className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md transition-colors border border-transparent hover:border-white/70 hover:bg-white/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#C66B49] whitespace-nowrap shrink-0 cursor-pointer"
+                  className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md transition-colors border border-transparent hover:border-white/70 hover:bg-white/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#E09F3E] whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   {currentEdition === "bodega" ? (
                     <>
-                      <Store className="w-3.5 h-3.5 text-[#B85A3A] shrink-0" />
+                      <Store className="w-3.5 h-3.5 text-[#9A6310] shrink-0" />
                       <span className="text-[#222629]">Bodega & Abasto</span>
                     </>
                   ) : (
@@ -245,7 +245,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span
                   className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
                     isOfflineMode
-                      ? "bg-[#C66B49] shadow-[0_0_6px_rgba(198,107,73,0.6)]"
+                      ? "bg-[#E09F3E] shadow-[0_0_6px_rgba(224,159,62,0.65)]"
                       : "bg-[#248F78] shadow-[0_0_6px_rgba(36,143,120,0.6)] animate-pulse"
                   }`}
                   aria-hidden="true"
@@ -271,8 +271,8 @@ export const Header: React.FC<HeaderProps> = ({
             title={bcvFechaValor ? `Tasa Oficial BCV (${bcvFechaValor})` : "Tasa Oficial BCV"}
           >
             <div className="flex items-center gap-1.5">
-              <div className="w-6 h-6 rounded-lg bg-[#C66B49]/18 border border-[#C66B49]/45 flex items-center justify-center shrink-0">
-                <DollarSign className="w-3.5 h-3.5 text-[#B85A3A]" />
+              <div className="w-6 h-6 rounded-lg bg-[#E09F3E]/20 border border-[#E09F3E]/50 flex items-center justify-center shrink-0">
+                <DollarSign className="w-3.5 h-3.5 text-[#9A6310]" />
               </div>
               <div className="flex flex-col justify-center">
                 <div className="flex items-center gap-1.5 leading-tight">
@@ -296,7 +296,7 @@ export const Header: React.FC<HeaderProps> = ({
                       min="0.01"
                       value={tempBcvRate}
                       onChange={(e) => setTempBcvRate(e.target.value)}
-                      className="w-20 bg-white/80 border border-[#C66B49] text-[#222629] text-xs font-mono tabular-nums px-1.5 py-0.5 rounded focus:outline-none focus:ring-1 focus:ring-[#C66B49]"
+                      className="w-20 bg-white/80 border border-[#E09F3E] text-[#222629] text-xs font-mono tabular-nums px-1.5 py-0.5 rounded focus:outline-none focus:ring-1 focus:ring-[#E09F3E]"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleSaveBcv();
                         if (e.key === "Escape") setIsEditingBcv(false);
@@ -345,7 +345,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   id="btn-edit-bcv"
                   onClick={() => setIsEditingBcv(true)}
-                  className="p-1 text-[#5C646D] hover:text-[#B85A3A] rounded transition-colors cursor-pointer"
+                  className="p-1 text-[#5C646D] hover:text-[#9A6310] rounded transition-colors cursor-pointer"
                   title="Editar tasa manualmente"
                 >
                   <Edit2 className="w-3 h-3" />
@@ -367,13 +367,13 @@ export const Header: React.FC<HeaderProps> = ({
               title="Cambiar Modo Operativo: Conectar terminal SmartPOS o Totalizar en Pantalla"
               className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                 posMode === "inventory_only"
-                  ? "bg-white/50 text-[#222629] border-white/60 hover:bg-white/75 hover:border-[#C66B49]/60"
+                  ? "bg-white/50 text-[#222629] border-white/60 hover:bg-white/75 hover:border-[#E09F3E]/65"
                   : "bg-[#7B61C9]/15 text-[#7B61C9] border-[#7B61C9]/35 hover:bg-[#7B61C9]/25"
               }`}
             >
               {posMode === "inventory_only" ? (
                 <>
-                  <ShoppingCart className="w-3.5 h-3.5 text-[#B85A3A] shrink-0" />
+                  <ShoppingCart className="w-3.5 h-3.5 text-[#9A6310] shrink-0" />
                   <span className="font-mono">Solo Inventario</span>
                 </>
               ) : (
