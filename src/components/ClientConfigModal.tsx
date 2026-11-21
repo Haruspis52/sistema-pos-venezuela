@@ -128,26 +128,26 @@ export const ClientConfigModal: React.FC<ClientConfigModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-[#12141a] border border-slate-700/80 rounded-2xl w-full max-w-4xl shadow-2xl text-slate-100 overflow-hidden my-auto flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900/60 via-slate-800 to-indigo-900/40 p-4 border-b border-slate-700/70 flex items-center justify-between shrink-0">
+        <div className="bg-gradient-to-r from-white/85 via-[#EEE8DB]/85 to-[#A592DC]/20 p-4 border-b border-white/75 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-300 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#7B61C9]/15 border border-[#7B61C9]/35 flex items-center justify-center text-[#7B61C9] shrink-0">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 className="text-base font-bold text-[#222629] flex items-center gap-2 flex-wrap">
                 Datos del Negocio / Perfil del Comercio
-                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-300">
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-[#248F78]/15 border border-[#248F78]/35 text-[#1D7A66] font-bold">
                   Para Tickets y Facturas
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-[#5C646D]">
                 Personaliza el nombre, RIF, dirección, pie de ticket y configuración fiscal para tu cliente.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors shrink-0"
+            className="p-1.5 text-[#5C646D] hover:text-[#222629] rounded-lg hover:bg-white/75 transition-colors shrink-0 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

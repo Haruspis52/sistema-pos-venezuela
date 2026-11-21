@@ -603,9 +603,9 @@ export const PosView: React.FC<PosViewProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        {/* Left 2 Columns: Fiscal Data + Search Bar + Cart */}
-        <div className="lg:col-span-2 min-w-0 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_370px] xl:grid-cols-[1fr_410px] gap-4 items-start">
+        {/* Left Area (~70-75%): Fiscal Data + Search Bar + Cart */}
+        <div className="min-w-0 space-y-3.5">
         {/* Banner de Validación LISLR Art. 177 si ocurre intento de existencia negativa */}
         {stockError && (
           <div className="bg-rose-950/80 border border-rose-700/90 rounded-xl p-3 text-rose-200 text-xs flex items-start gap-2.5 animate-pulse shadow-lg">

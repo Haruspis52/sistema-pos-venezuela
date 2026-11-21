@@ -250,14 +250,14 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
           controller={colResizer}
           title="Configurar Tamaño de Columnas • Kardex Tributario (Art. 177)"
         />
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[calc(100vh-270px)] min-h-[360px] overflow-y-auto">
           <table
             data-resizable-table={colResizer.tableId}
             className="w-full text-left text-xs text-slate-300"
           >
             <thead className="bg-[#12141a] text-slate-400 border-b border-slate-800 uppercase font-mono text-[11px]">
               <tr>
-                <th data-col="id" className="py-3 px-3 text-center relative">
+                <th data-col="id" className="py-2 px-2.5 text-center relative">
                   <span className="pr-2">#</span>
                   <ColumnResizeHandle
                     colKey="id"
@@ -265,7 +265,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="fecha" className="py-3 px-3 relative">
+                <th data-col="fecha" className="py-2 px-2.5 relative">
                   <span className="pr-2">Fecha y Hora</span>
                   <ColumnResizeHandle
                     colKey="fecha"
@@ -273,7 +273,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="tipo" className="py-3 px-3 text-center relative">
+                <th data-col="tipo" className="py-2 px-2.5 text-center relative">
                   <span className="pr-2">Tipo</span>
                   <ColumnResizeHandle
                     colKey="tipo"
@@ -281,7 +281,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="producto" className="py-3 px-3 relative">
+                <th data-col="producto" className="py-2 px-2.5 relative">
                   <span className="pr-2">Producto Afectado</span>
                   <ColumnResizeHandle
                     colKey="producto"
@@ -289,7 +289,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="cantidad" className="py-3 px-3 text-center relative">
+                <th data-col="cantidad" className="py-2 px-2.5 text-center relative">
                   <span className="pr-2">Cantidad</span>
                   <ColumnResizeHandle
                     colKey="cantidad"
@@ -297,7 +297,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="costo" className="py-3 px-3 text-right relative">
+                <th data-col="costo" className="py-2 px-2.5 text-right relative">
                   <span className="pr-2">Costo Mov. ($)</span>
                   <ColumnResizeHandle
                     colKey="costo"
@@ -305,7 +305,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="pmp" className="py-3 px-3 text-right relative">
+                <th data-col="pmp" className="py-2 px-2.5 text-right relative">
                   <span className="pr-2">PMP Resultante ($)</span>
                   <ColumnResizeHandle
                     colKey="pmp"
@@ -313,7 +313,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="existencia" className="py-3 px-3 text-center relative">
+                <th data-col="existencia" className="py-2 px-2.5 text-center relative">
                   <span className="pr-2">Existencia</span>
                   <ColumnResizeHandle
                     colKey="existencia"
@@ -321,7 +321,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="motivo" className="py-3 px-3 relative">
+                <th data-col="motivo" className="py-2 px-2.5 relative">
                   <span className="pr-2">Motivo / Justificación</span>
                   <ColumnResizeHandle
                     colKey="motivo"
@@ -329,7 +329,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="factura" className="py-3 px-3 text-center relative">
+                <th data-col="factura" className="py-2 px-2.5 text-center relative">
                   <span className="pr-2">Ref. Factura</span>
                   <ColumnResizeHandle
                     colKey="factura"
@@ -337,7 +337,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="operador" className="py-3 px-3 text-center relative">
+                <th data-col="operador" className="py-2 px-2.5 text-center relative">
                   <span className="pr-2">Operador</span>
                   <ColumnResizeHandle
                     colKey="operador"
@@ -357,13 +357,13 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
               ) : (
                 pagination.paginatedItems.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td data-col="id" className="py-2.5 px-3 text-center font-mono text-slate-500 text-[11px]">
+                    <td data-col="id" className="py-2 px-2.5 text-center font-mono text-slate-500 text-[11px]">
                       {m.id}
                     </td>
-                    <td data-col="fecha" className="py-2.5 px-3 font-mono text-slate-300 whitespace-nowrap text-[11px] truncate">
+                    <td data-col="fecha" className="py-2 px-2.5 font-mono text-slate-300 whitespace-nowrap text-[11px] truncate">
                       {m.fecha}
                     </td>
-                    <td data-col="tipo" className="py-2.5 px-3 text-center">
+                    <td data-col="tipo" className="py-2 px-2.5 text-center">
                       {m.tipo === "ENTRADA" ? (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
                           <ArrowDownLeft className="w-3 h-3" /> ENTRADA
@@ -378,33 +378,33 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                         </span>
                       )}
                     </td>
-                    <td data-col="producto" className="py-2.5 px-3 font-semibold text-white truncate">
+                    <td data-col="producto" className="py-2 px-2.5 font-semibold text-white truncate">
                       {m.producto_nombre || "Producto #" + m.producto_id}
                     </td>
-                    <td data-col="cantidad" className="py-2.5 px-3 text-center font-mono font-bold text-slate-200">
+                    <td data-col="cantidad" className="py-2 px-2.5 text-center font-mono font-bold text-slate-200">
                       {m.tipo === "SALIDA" ? `-${m.cantidad}` : `+${m.cantidad}`}
                     </td>
-                    <td data-col="costo" className="py-2.5 px-3 text-right font-mono text-slate-300">
+                    <td data-col="costo" className="py-2 px-2.5 text-right font-mono text-slate-300">
                       {m.costo_unitario !== undefined && m.costo_unitario > 0 ? (
                         `$${m.costo_unitario.toFixed(2)}`
                       ) : (
                         <span className="text-slate-600">-</span>
                       )}
                     </td>
-                    <td data-col="pmp" className="py-2.5 px-3 text-right font-mono text-amber-300 font-medium">
+                    <td data-col="pmp" className="py-2 px-2.5 text-right font-mono text-amber-300 font-medium">
                       {m.costo_promedio_ponderado !== undefined && m.costo_promedio_ponderado > 0 ? (
                         `$${m.costo_promedio_ponderado.toFixed(2)}`
                       ) : (
                         <span className="text-slate-600">-</span>
                       )}
                     </td>
-                    <td data-col="existencia" className="py-2.5 px-3 text-center font-mono font-bold text-emerald-400">
+                    <td data-col="existencia" className="py-2 px-2.5 text-center font-mono font-bold text-emerald-400">
                       {m.stock_resultante !== undefined ? m.stock_resultante : "-"}
                     </td>
-                    <td data-col="motivo" className="py-2.5 px-3 text-slate-400 truncate">
+                    <td data-col="motivo" className="py-2 px-2.5 text-slate-400 truncate">
                       {m.motivo}
                     </td>
-                    <td data-col="factura" className="py-2.5 px-3 text-center font-mono text-slate-400 truncate">
+                    <td data-col="factura" className="py-2 px-2.5 text-center font-mono text-slate-400 truncate">
                       {m.referencia_factura ? (
                         <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[11px] text-blue-300">
                           {m.referencia_factura}
@@ -413,7 +413,7 @@ export const MovementsView: React.FC<MovementsViewProps> = ({
                         "-"
                       )}
                     </td>
-                    <td data-col="operador" className="py-2.5 px-3 text-center text-slate-400 truncate">
+                    <td data-col="operador" className="py-2 px-2.5 text-center text-slate-400 truncate">
                       {m.usuario || "Admin"}
                     </td>
                   </tr>

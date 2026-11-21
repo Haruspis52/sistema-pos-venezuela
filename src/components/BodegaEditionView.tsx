@@ -80,6 +80,8 @@ interface BodegaEditionViewProps {
   onUserChange?: (user: SystemUser) => void;
   onOpenCatalog?: () => void;
   onOpenInvoiceAi?: () => void;
+  activeTab?: "mostrador" | "fiados" | "caja" | "etiquetas";
+  onTabChange?: (tab: "mostrador" | "fiados" | "caja" | "etiquetas") => void;
 }
 
 export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
@@ -95,11 +97,15 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
   onUserChange,
   onOpenCatalog,
   onOpenInvoiceAi,
+  activeTab,
+  onTabChange,
 }) => {
-  // Subtabs within Bodega edition
-  const [bodegaTab, setBodegaTab] = useState<
+  // Subtabs within Bodega edition (controlled by parent unified tab bar when activeTab is passed)
+  const [internalBodegaTab, setInternalBodegaTab] = useState<
     "mostrador" | "fiados" | "caja" | "etiquetas"
   >("mostrador");
+  const bodegaTab = activeTab ?? internalBodegaTab;
+  const setBodegaTab = onTabChange ?? setInternalBodegaTab;
 
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -115,12 +121,12 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
       return "grid";
     }
   });
-  const [mostradorGridCols, setMostradorGridCols] = useState<2 | 3 | 4>(() => {
+  const [mostradorGridCols, setMostradorGridCols] = useState<2 | 3 | 4 | 5>(() => {
     try {
       const v = Number(localStorage.getItem("bodega_mostrador_cols"));
-      if (v === 2 || v === 3 || v === 4) return v;
+      if (v === 2 || v === 3 || v === 4 || v === 5) return v;
     } catch {}
-    return 3;
+    return 4;
   });
 
   const [fiadosViewMode, setFiadosViewMode] = useState<"grid" | "table">(() => {
@@ -397,7 +403,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
 
   // Cart Calculations
   const cartTotalUsd = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.subtotal, 0);
+    return Number(cart.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2));
   }, [cart]);
 
   const cartTotalVes = useMemo(() => {
@@ -1354,168 +1360,102 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
 
   return (
     <div className="space-y-3">
-      {/* Compact Single-Line Bodega Navigation Bar (Point 1 & Point 2) */}
-      <div className="bg-[#12141a] border border-amber-500/25 rounded-2xl px-3.5 py-2 flex flex-wrap items-center justify-between gap-2.5 shadow-md">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-sm shrink-0">
-            <Store className="w-4 h-4" />
+      {/* Fallback sub-tab bar only if BodegaEditionView is rendered standalone without activeTab */}
+      {!activeTab && (
+        <div className="bg-[#12141a] border border-amber-500/25 rounded-2xl px-3.5 py-2 flex flex-wrap items-center justify-between gap-2.5 shadow-md">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#B85A3A] flex items-center justify-center text-white faraday-keep-white shadow-sm shrink-0">
+              <Store className="w-4 h-4" />
+            </div>
+            <h2 className="text-sm font-bold text-white truncate">
+              Edición Bodega
+            </h2>
           </div>
-          <h2 className="text-sm font-bold text-white truncate">
-            Edición Bodega
-          </h2>
+
+          <div className="flex flex-wrap items-center gap-1 faraday-glass-bar p-1 rounded-xl border border-white/65">
+            <button
+              onClick={() => setBodegaTab("mostrador")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                bodegaTab === "mostrador"
+                  ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-extrabold"
+                  : "text-[#5C646D] hover:text-[#222629] hover:bg-white/60"
+              }`}
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              <span>Mostrador</span>
+            </button>
+            <button
+              onClick={() => setBodegaTab("fiados")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                bodegaTab === "fiados"
+                  ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-extrabold"
+                  : "text-[#5C646D] hover:text-[#222629] hover:bg-white/60"
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Libreta</span>
+            </button>
+            <button
+              onClick={() => setBodegaTab("caja")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                bodegaTab === "caja"
+                  ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-extrabold"
+                  : "text-[#5C646D] hover:text-[#222629] hover:bg-white/60"
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              <span>Caja</span>
+            </button>
+            <button
+              onClick={() => setBodegaTab("etiquetas")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                bodegaTab === "etiquetas"
+                  ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-extrabold"
+                  : "text-[#5C646D] hover:text-[#222629] hover:bg-white/60"
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Anaquel</span>
+            </button>
+          </div>
         </div>
-
-        {/* Bodega Sub-tabs */}
-        <div className="flex flex-wrap items-center gap-1 bg-[#0e1017] p-1 rounded-xl border border-slate-800">
-          <button
-            onClick={() => setBodegaTab("mostrador")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              bodegaTab === "mostrador"
-                ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <ShoppingCart className="w-3.5 h-3.5" />
-            <span>Mostrador</span>
-            {cart.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-slate-950 text-amber-300 text-[10px] font-mono">
-                {cart.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setBodegaTab("fiados")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              bodegaTab === "fiados"
-                ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Libreta</span>
-            {totalFiadosPendingUsd > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-amber-950 text-amber-300 text-[10px] font-mono">
-                ${totalFiadosPendingUsd.toFixed(1)}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setBodegaTab("caja")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              bodegaTab === "caja"
-                ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <Calculator className="w-3.5 h-3.5" />
-            <span>Caja</span>
-          </button>
-
-          <button
-            onClick={() => setBodegaTab("etiquetas")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-              bodegaTab === "etiquetas"
-                ? "bg-amber-500 text-slate-950 shadow-md font-extrabold"
-                : "text-slate-400 hover:text-white"
-            }`}
-          >
-            <Tag className="w-3.5 h-3.5" />
-            <span>Anaquel</span>
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* ========================================================= */}
       {/* 1. TAB: MOSTRADOR / VENTA RÁPIDA */}
       {/* ========================================================= */}
       {bodegaTab === "mostrador" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-          {/* Left: Product Catalog & Quick Search (7 cols) */}
-          <div className="lg:col-span-7 min-w-0 space-y-3">
-            {/* Search & Barcode Input (Point 1: Removed duplicated BCV pill) */}
-            <div className="bg-[#14161f] border border-slate-800 p-3 rounded-2xl flex flex-wrap items-center gap-2 overflow-hidden">
-              <div className="relative flex-1 min-w-[220px]">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] xl:grid-cols-[1fr_400px] gap-3.5 items-stretch">
+          {/* Left: Product Catalog & Quick Search (~70-75% width, full viewport height) */}
+          <div className="min-w-0 flex flex-col gap-2.5 lg:h-[calc(100vh-145px)] lg:min-h-[480px]">
+            {/* Unified Toolbar Bar: Search + View Controls + Category Dropdown + Orden + Avance + Scanner */}
+            <div className="faraday-glass-panel w-full min-w-0 p-2 rounded-2xl flex flex-wrap items-center gap-1.5 shrink-0">
+              <div className="relative flex-1 min-w-[190px]">
+                <Search className="w-4 h-4 text-[#5C646D] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   id="input-search-product"
                   value={searchProduct}
                   onChange={(e) => setSearchProduct(e.target.value)}
                   placeholder="Escanear código de barras o escribir producto..."
-                  className="w-full bg-[#0e1017] border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+                  className="w-full bg-white/65 border border-white/75 rounded-xl pl-9 pr-3 py-1.5 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#C66B49] focus:outline-none shadow-inner"
                   autoFocus
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                {/* Botón Rápido: Dar Avance de Efectivo */}
-                <button
-                  type="button"
-                  onClick={() => setIsAvanceModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold shadow-md shadow-emerald-950/50 border border-emerald-400/40 whitespace-nowrap shrink-0 transition-all cursor-pointer"
-                  title="Dar Avance de Efectivo cobrando por Punto de Venta con porcentaje de ganancia configurable"
-                >
-                  <Banknote className="w-4 h-4 text-emerald-100 shrink-0" />
-                  <span>Dar Avance</span>
-                  <span className="px-1.5 py-0.5 rounded bg-black/30 text-emerald-200 font-mono text-[10px]">
-                    +{avancePorcentaje}%
-                  </span>
-                </button>
-
-                {/* Barcode Global Scanner Ready Badge */}
-                <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-medium whitespace-nowrap shrink-0" title="Escaneo global activado: Pase cualquier producto por el lector sin necesidad de hacer clic en el buscador">
-                  <Barcode className="w-3.5 h-3.5 animate-pulse shrink-0" />
-                  <span>Lector Activo</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Banner when product scanned via global scanner */}
-            {lastScannedProduct && (
-              <div className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 px-3.5 py-2 rounded-xl text-xs flex items-center justify-between animate-fadeIn">
-                <div className="flex items-center gap-2">
-                  <Barcode className="w-4 h-4 text-emerald-400" />
-                  <span>
-                    <strong>¡Producto añadido con escáner!</strong> {lastScannedProduct}
-                  </span>
-                </div>
-                <span className="text-[10px] bg-emerald-500/30 px-2 py-0.5 rounded font-mono font-bold">+1 al carrito</span>
-              </div>
-            )}
-
-            {/* Category Quick Chips & Sort Selector */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none flex-1">
-                {categoriesList.map((cat, idx) => (
-                  <button
-                    key={`cat-btn-${cat}-${idx}`}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
-                      selectedCategory === cat
-                        ? "bg-amber-500 text-slate-950 font-bold"
-                        : "bg-[#14161f] text-slate-400 hover:text-white border border-slate-800"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Sort Pill & View/Column Config */}
-              <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
-                <div className="flex items-center gap-1 bg-[#14161f] border border-slate-800 rounded-xl p-1 text-[10px]">
+              {/* View Mode + Cols + Category Dropdown + Sort + Avance + Scanner */}
+              <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
+                <div className="flex items-center gap-0.5 bg-white/50 border border-white/65 rounded-xl p-0.5 text-[10px]">
                   <button
                     type="button"
                     onClick={() => {
                       setMostradorViewMode("grid");
                       try { localStorage.setItem("bodega_mostrador_view", "grid"); } catch {}
                     }}
-                    className={`px-2 py-0.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                    className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-colors ${
                       mostradorViewMode === "grid"
-                        ? "bg-amber-500 text-slate-950"
-                        : "text-slate-400 hover:text-white"
+                        ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm"
+                        : "text-[#5C646D] hover:text-[#222629]"
                     }`}
                     title="Vista de tarjetas en cuadrícula"
                   >
@@ -1527,21 +1467,21 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                       setMostradorViewMode("table");
                       try { localStorage.setItem("bodega_mostrador_view", "table"); } catch {}
                     }}
-                    className={`px-2 py-0.5 rounded-lg font-bold cursor-pointer transition-colors ${
+                    className={`px-2 py-1 rounded-lg font-bold cursor-pointer transition-colors ${
                       mostradorViewMode === "table"
-                        ? "bg-amber-500 text-slate-950"
-                        : "text-slate-400 hover:text-white"
+                        ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm"
+                        : "text-[#5C646D] hover:text-[#222629]"
                     }`}
                     title="Vista de lista con tamaño de columnas configurable"
                   >
-                    Lista Ajustable
+                    Lista
                   </button>
                 </div>
 
                 {mostradorViewMode === "grid" && (
-                  <div className="flex items-center gap-1 bg-[#14161f] border border-slate-800 rounded-xl px-2 py-1 text-[10px]">
-                    <span className="text-slate-400 font-medium">Cols:</span>
-                    {([2, 3, 4] as const).map((cols) => (
+                  <div className="flex items-center gap-0.5 bg-white/50 border border-white/65 rounded-xl px-1.5 py-1 text-[10px]">
+                    <span className="text-[#5C646D] font-semibold hidden sm:inline mr-0.5">Cols:</span>
+                    {([2, 3, 4, 5] as const).map((cols) => (
                       <button
                         key={cols}
                         type="button"
@@ -1551,8 +1491,8 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         }}
                         className={`w-5 h-5 rounded font-mono font-bold cursor-pointer transition-colors ${
                           mostradorGridCols === cols
-                            ? "bg-blue-600 text-white"
-                            : "text-slate-400 hover:text-white bg-slate-900"
+                            ? "bg-[#7B61C9] text-white faraday-keep-white shadow-sm"
+                            : "text-[#5C646D] hover:text-[#222629] bg-white/60"
                         }`}
                         title={`Mostrar ${cols} columnas de productos`}
                       >
@@ -1562,38 +1502,94 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   </div>
                 )}
 
-                <div className="flex items-center gap-1.5 bg-[#14161f] border border-slate-800 rounded-xl px-2.5 py-1 text-slate-300">
-                  <ArrowUpDown className="w-3 h-3 text-amber-400 shrink-0" />
+                {/* Menú desplegable compacto de Categorías */}
+                <div
+                  className={`flex items-center gap-1 rounded-xl px-2 py-1 border transition-colors min-w-0 ${
+                    selectedCategory !== "TODAS"
+                      ? "bg-[#C66B49]/22 border-[#C66B49]/65 text-[#222629]"
+                      : "bg-white/50 border-white/65 text-[#222629]"
+                  }`}
+                >
+                  <Tag className="w-3 h-3 text-[#B85A3A] shrink-0" />
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="bg-transparent text-[11px] font-semibold text-[#222629] focus:outline-none cursor-pointer w-[96px] sm:w-[110px] truncate"
+                    title="Filtrar productos por categoría"
+                  >
+                    {categoriesList.map((cat, idx) => (
+                      <option key={`cat-opt-${cat}-${idx}`} value={cat}>
+                        {cat === "TODAS" ? "Cat: Todas" : cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1 bg-white/50 border border-white/65 rounded-xl px-2 py-1 text-[#222629]">
+                  <ArrowUpDown className="w-3 h-3 text-[#B85A3A] shrink-0" />
                   <select
                     value={bodegaSort}
                     onChange={(e) => setBodegaSort(e.target.value as any)}
-                    className="bg-transparent text-[11px] font-semibold text-slate-200 focus:outline-none cursor-pointer"
+                    className="bg-transparent text-[11px] font-semibold text-[#222629] focus:outline-none cursor-pointer"
                     title="Ordenar productos en mostrador"
                   >
-                    <option value="nombre_asc" className="bg-[#14161f]">🔤 A ➔ Z</option>
-                    <option value="nombre_desc" className="bg-[#14161f]">🔤 Z ➔ A</option>
-                    <option value="stock_desc" className="bg-[#14161f]">📦 + Stock</option>
-                    <option value="stock_asc" className="bg-[#14161f]">⚠️ - Stock</option>
-                    <option value="precio_desc" className="bg-[#14161f]">💰 + Precio</option>
-                    <option value="precio_asc" className="bg-[#14161f]">💵 - Precio</option>
+                    <option value="nombre_asc">🔤 A ➔ Z</option>
+                    <option value="nombre_desc">🔤 Z ➔ A</option>
+                    <option value="stock_desc">📦 + Stock</option>
+                    <option value="stock_asc">⚠️ - Stock</option>
+                    <option value="precio_desc">💰 + Precio</option>
+                    <option value="precio_asc">💵 - Precio</option>
                   </select>
+                </div>
+
+                {/* Botón Rápido: Dar Avance de Efectivo (Cerceta Profundo #248F78) */}
+                <button
+                  type="button"
+                  onClick={() => setIsAvanceModalOpen(true)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-xl bg-[#248F78] hover:bg-[#1e7a66] text-white faraday-keep-white text-[11px] font-extrabold shadow-md shadow-[#248F78]/25 border border-white/45 whitespace-nowrap shrink-0 transition-all cursor-pointer"
+                  title="Dar Avance de Efectivo cobrando por Punto de Venta con porcentaje de ganancia configurable"
+                >
+                  <Banknote className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span className="faraday-keep-white">Avance</span>
+                  <span className="px-1 py-0.5 rounded bg-white/20 text-white faraday-keep-white font-mono text-[10px]">
+                    +{avancePorcentaje}%
+                  </span>
+                </button>
+
+                {/* Barcode Global Scanner Ready Badge (Cerceta Profundo #248F78) */}
+                <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-[#248F78]/15 border border-[#248F78]/40 text-[#248F78] text-[11px] font-bold whitespace-nowrap shrink-0" title="Escaneo global activado: Pase cualquier producto por el lector sin necesidad de hacer clic en el buscador">
+                  <Barcode className="w-3.5 h-3.5 animate-pulse shrink-0 text-[#248F78]" />
+                  <span className="hidden 2xl:inline">Lector Activo</span>
                 </div>
               </div>
             </div>
 
+            {/* Quick Banner when product scanned via global scanner */}
+            {lastScannedProduct && (
+              <div className="bg-[#248F78]/15 border border-[#248F78]/45 text-[#222629] px-3.5 py-1.5 rounded-xl text-xs flex items-center justify-between animate-fadeIn shrink-0">
+                <div className="flex items-center gap-2">
+                  <Barcode className="w-4 h-4 text-[#248F78]" />
+                  <span>
+                    <strong>¡Producto añadido con escáner!</strong> {lastScannedProduct}
+                  </span>
+                </div>
+                <span className="text-[10px] bg-[#248F78] text-white faraday-keep-white px-2 py-0.5 rounded font-mono font-bold">+1 al carrito</span>
+              </div>
+            )}
+
             {/* Products Grid, Onboarding Empty State (Point 4), or Resizable Table */}
             {mostradorPagination.totalItems === 0 ? (
-              <div className="bg-[#14161f] border border-dashed border-slate-700/80 rounded-2xl p-8 text-center space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto shadow-inner">
+              <div className="faraday-glass-panel border border-dashed border-white/70 rounded-2xl p-8 text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-[#C66B49]/18 border border-[#C66B49]/40 flex items-center justify-center text-[#B85A3A] mx-auto shadow-inner">
                   <Store className="w-7 h-7" />
                 </div>
                 {products.length === 0 ? (
                   <>
                     <div className="space-y-1 max-w-md mx-auto">
-                      <h3 className="text-sm sm:text-base font-extrabold text-white">
+                      <h3 className="text-sm sm:text-base font-extrabold text-[#222629]">
                         Tu catálogo de productos está vacío
                       </h3>
-                      <p className="text-xs text-slate-400 leading-relaxed">
+                      <p className="text-xs text-[#5C646D] leading-relaxed">
                         Registra tu primer artículo o importa tu lista de precios desde un archivo Excel / CSV para empezar a vender en el mostrador.
                       </p>
                     </div>
@@ -1602,7 +1598,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         <button
                           type="button"
                           onClick={onOpenCatalog}
-                          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-amber-950/40 transition-all cursor-pointer"
+                          className="px-4 py-2.5 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] text-white faraday-keep-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-[#B85A3A]/30 border border-white/60 transition-all cursor-pointer"
                         >
                           <Plus className="w-4 h-4" />
                           <span>Agregar o Importar Productos (Catálogo)</span>
@@ -1612,9 +1608,9 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         <button
                           type="button"
                           onClick={onOpenInvoiceAi}
-                          className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                          className="px-3.5 py-2.5 rounded-xl bg-white/60 hover:bg-white/85 border border-white/70 text-[#222629] font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                         >
-                          <FileText className="w-3.5 h-3.5 text-amber-400" />
+                          <FileText className="w-3.5 h-3.5 text-[#7B61C9]" />
                           <span>Cargar desde Factura con IA</span>
                         </button>
                       )}
@@ -1623,10 +1619,10 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 ) : (
                   <>
                     <div className="space-y-1 max-w-sm mx-auto">
-                      <h3 className="text-sm font-bold text-white">
+                      <h3 className="text-sm font-bold text-[#222629]">
                         No se encontraron productos para esta búsqueda
                       </h3>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-[#5C646D]">
                         Intenta con otro nombre, código de barras o selecciona la categoría &quot;TODAS&quot;.
                       </p>
                     </div>
@@ -1636,7 +1632,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                         setSearchProduct("");
                         setSelectedCategory("TODAS");
                       }}
-                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] text-white faraday-keep-white text-xs font-extrabold border border-white/60 transition-colors cursor-pointer"
                     >
                       Limpiar filtros de búsqueda
                     </button>
@@ -1644,13 +1640,15 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 )}
               </div>
             ) : mostradorViewMode === "grid" ? (
-              <div className="space-y-2">
+              <div className="flex-1 min-h-0 flex flex-col justify-between gap-2">
                 <div
-                  className={`grid gap-2.5 max-h-[620px] overflow-y-auto pr-1 overscroll-auto ${
+                  className={`grid gap-2.5 flex-1 min-h-0 overflow-y-auto pr-1 content-start overscroll-auto ${
                     mostradorGridCols === 2
                       ? "grid-cols-1 sm:grid-cols-2"
+                      : mostradorGridCols === 5
+                      ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
                       : mostradorGridCols === 4
-                      ? "grid-cols-2 sm:grid-cols-4"
+                      ? "grid-cols-2 sm:grid-cols-3 xl:grid-cols-4"
                       : "grid-cols-2 sm:grid-cols-3"
                   }`}
                 >
@@ -1661,36 +1659,40 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                       <button
                         key={`bodega-p-${p.id}-${p.codigo_barras || ""}-${idx}`}
                         onClick={() => handleAddToCart(p)}
-                        className={`bg-[#14161f] hover:bg-[#1c202d] border rounded-2xl p-3 text-left transition-all relative flex flex-col justify-between group ${
+                        className={`rounded-2xl p-2.5 text-left transition-all relative flex flex-col justify-between group cursor-pointer ${
                           inCart
-                            ? "border-amber-500 shadow-md shadow-amber-950/30 bg-amber-500/5"
-                            : "border-slate-800 hover:border-slate-700"
+                            ? "faraday-glass-card-active"
+                            : "faraday-glass-card"
                         }`}
                       >
-                        {inCart && (
-                          <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-mono font-bold shadow">
-                            x{inCart.cantidad}
-                          </span>
-                        )}
-                        <div>
-                          <div className="text-[10px] text-slate-400 line-clamp-1 font-mono">
+                        <div className="flex items-start justify-between gap-1.5">
+                          <div className="text-[10px] text-[#5C646D] line-clamp-1 font-mono flex-1">
                             {p.codigo_barras}
                           </div>
-                          <div className="text-xs font-bold text-white line-clamp-2 mt-0.5 group-hover:text-amber-300">
-                            {p.nombre}
-                          </div>
+                          {inCart ? (
+                            <span className="px-2 py-0.5 rounded-full bg-[#7B61C9] text-white faraday-keep-white text-[10px] font-mono font-bold shadow-sm shrink-0">
+                              x{inCart.cantidad}
+                            </span>
+                          ) : (
+                            <span className="w-5 h-5 rounded-full bg-[#7B61C9]/15 border border-[#7B61C9]/30 text-[#7B61C9] flex items-center justify-center shrink-0 group-hover:bg-[#7B61C9] group-hover:text-white transition-colors">
+                              <Plus className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs font-extrabold text-[#222629] line-clamp-2 mt-1 group-hover:text-[#7B61C9] transition-colors">
+                          {p.nombre}
                         </div>
 
-                        <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-end justify-between">
+                        <div className="mt-2.5 pt-1.5 border-t border-white/60 flex items-end justify-between">
                           <div>
-                            <div className="text-sm font-extrabold text-amber-400 font-mono">
+                            <div className="text-sm font-extrabold text-[#B85A3A] font-mono">
                               ${p.precio_venta.toFixed(2)}
                             </div>
-                            <div className="text-[10px] text-slate-300 font-mono">
+                            <div className="text-[10px] text-[#5C646D] font-mono font-medium">
                               Bs. {priceVes.toFixed(2)}
                             </div>
                           </div>
-                          <span className="text-[9px] text-slate-400 font-mono">
+                          <span className="text-[9px] text-[#5C646D] font-mono font-semibold">
                             Stock: {p.stock_actual}
                           </span>
                         </div>
@@ -1698,7 +1700,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     );
                   })}
                 </div>
-                <div className="rounded-xl overflow-hidden border border-slate-800">
+                <div className="rounded-xl overflow-hidden faraday-glass-bar border border-white/60 shrink-0">
                   <TablePagination
                     currentPage={mostradorPagination.currentPage}
                     pageSize={mostradorPagination.pageSize}
@@ -1713,12 +1715,12 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 </div>
               </div>
             ) : (
-              <div className="bg-[#14161f] border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+              <div className="flex-1 min-h-0 bg-[#14161f] border border-slate-800 rounded-2xl overflow-hidden shadow-md flex flex-col">
                 <ColumnConfiguratorToolbar
                   controller={mostradorColResizer}
                   title="Configurar Tamaño de Columnas • Lista de Mostrador"
                 />
-                <div className="overflow-x-auto max-h-[560px] overflow-y-auto">
+                <div className="overflow-x-auto flex-1 min-h-0 overflow-y-auto">
                   <table
                     data-resizable-table={mostradorColResizer.tableId}
                     className="w-full text-left text-xs text-slate-300"
@@ -1830,14 +1832,16 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
             )}
           </div>
 
-          {/* Right: Sticky Mostrador Cart & Checkout Panel (Point 5) */}
-          <div className="lg:col-span-5 min-w-0 lg:sticky lg:top-20 bg-[#12141a] border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-xl min-h-[460px] lg:max-h-[calc(100vh-6rem)]">
+          {/* Right: Viewport-Locked Sticky Mostrador Cart & Checkout Panel (~30%) */}
+          <div className="min-w-0 lg:sticky lg:top-20 faraday-glass-cart rounded-2xl p-3.5 flex flex-col justify-between lg:h-[calc(100vh-145px)] lg:min-h-[480px]">
             <div className="flex flex-col flex-1 min-h-0">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+              <div className="flex items-center justify-between pb-2.5 border-b border-white/60 shrink-0">
                 <div className="flex items-center gap-2">
-                  <ShoppingCart className="w-4 h-4 text-amber-400" />
-                  <span className="text-sm font-bold text-white">Canasta de Venta</span>
-                  <span className="text-xs text-slate-400 font-mono">
+                  <div className="w-7 h-7 rounded-full bg-[#7B61C9]/15 border border-[#7B61C9]/30 flex items-center justify-center shrink-0">
+                    <ShoppingCart className="w-3.5 h-3.5 text-[#7B61C9]" />
+                  </div>
+                  <span className="text-sm font-extrabold text-[#222629]">Canasta de Venta</span>
+                  <span className="text-xs text-[#5C646D] font-mono font-semibold">
                     ({cart.reduce((s, i) => s + i.cantidad, 0)} arts)
                   </span>
                 </div>
@@ -1845,7 +1849,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   <button
                     id="btn-clear-cart"
                     onClick={handleClearCart}
-                    className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer"
                     title="Vaciar Canasta de Ventas (Alt + X)"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -1855,10 +1859,12 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               </div>
 
               {/* Cart Items List */}
-              <div className="divide-y divide-slate-800/60 flex-1 overflow-y-auto pr-1 my-2 min-h-[160px] max-h-[320px]">
+              <div className="divide-y divide-[#222629]/10 flex-1 min-h-0 overflow-y-auto pr-1 my-1.5">
                 {cart.length === 0 ? (
-                  <div className="text-center py-10 text-slate-500 text-xs">
-                    <Store className="w-8 h-8 mx-auto mb-2 opacity-30 text-amber-400" />
+                  <div className="text-center py-10 text-[#5C646D] text-xs">
+                    <div className="w-12 h-12 rounded-full bg-[#7B61C9]/12 border border-[#7B61C9]/25 flex items-center justify-center mx-auto mb-2.5">
+                      <Store className="w-6 h-6 text-[#7B61C9]" />
+                    </div>
                     Haz clic en un producto o escanea un código para empezar a vender.
                   </div>
                 ) : (
@@ -1868,43 +1874,43 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                       className="py-2.5 flex items-center justify-between gap-2"
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-white truncate">
+                        <div className="text-xs font-extrabold text-[#222629] truncate">
                           {item.producto.nombre}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
+                        <div className="text-[10px] text-[#5C646D] font-mono">
                           ${item.precio_unitario.toFixed(2)} c/u • Bs.{" "}
                           {(item.precio_unitario * bcvRate).toFixed(2)}
                         </div>
                       </div>
 
                       {/* Quantity Controls */}
-                      <div className="flex items-center gap-1.5 bg-[#0e1017] p-1 rounded-lg border border-slate-800">
+                      <div className="flex items-center gap-1.5 bg-white/60 p-1 rounded-lg border border-white/75">
                         <button
                           onClick={() =>
                             handleUpdateCartQuantity(item.producto.id, -1)
                           }
-                          className="w-5 h-5 rounded flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white text-xs"
+                          className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#B85A3A] text-[#222629] hover:text-white font-bold text-xs transition-colors cursor-pointer"
                         >
                           -
                         </button>
-                        <span className="w-6 text-center text-xs font-mono font-bold text-white">
+                        <span className="w-6 text-center text-xs font-mono font-bold text-[#222629]">
                           {item.cantidad}
                         </span>
                         <button
                           onClick={() =>
                             handleUpdateCartQuantity(item.producto.id, 1)
                           }
-                          className="w-5 h-5 rounded flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white text-xs"
+                          className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#B85A3A] text-[#222629] hover:text-white font-bold text-xs transition-colors cursor-pointer"
                         >
                           +
                         </button>
                       </div>
 
                       <div className="text-right font-mono min-w-[70px]">
-                        <div className="text-xs font-bold text-amber-400">
+                        <div className="text-xs font-extrabold text-[#B85A3A]">
                           ${item.subtotal.toFixed(2)}
                         </div>
-                        <div className="text-[10px] text-slate-400">
+                        <div className="text-[10px] text-[#5C646D] font-medium">
                           Bs. {(item.subtotal * bcvRate).toFixed(2)}
                         </div>
                       </div>
@@ -1914,20 +1920,20 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               </div>
             </div>
 
-            {/* Totals & Fast Checkout Trigger */}
-            <div className="pt-3 border-t border-slate-800 space-y-3">
-              <div className="bg-[#181b24] p-3 rounded-xl space-y-1">
+            {/* Totals & Fast Checkout Trigger (Lavanda Difuminado #A592DC) */}
+            <div className="pt-3 border-t border-white/60 space-y-3">
+              <div className="bg-gradient-to-br from-white/70 via-[#EEE8DB]/65 to-[#A592DC]/25 border border-white/75 p-3 rounded-xl space-y-1 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.85)]">
                 <div className="flex justify-between items-baseline">
-                  <span className="text-xs text-slate-300 font-semibold">
+                  <span className="text-xs text-[#222629] font-bold">
                     TOTAL EN DÓLARES:
                   </span>
-                  <span className="text-lg font-extrabold text-amber-400 font-mono">
+                  <span className="text-lg font-extrabold text-[#B85A3A] font-mono">
                     ${cartTotalUsd.toFixed(2)} USD
                   </span>
                 </div>
-                <div className="flex justify-between items-baseline pt-1 border-t border-slate-700/50">
-                  <span className="text-xs text-slate-400">TOTAL EN BOLÍVARES:</span>
-                  <span className="text-sm font-bold text-white font-mono">
+                <div className="flex justify-between items-baseline pt-1 border-t border-[#222629]/10">
+                  <span className="text-xs text-[#5C646D] font-semibold">TOTAL EN BOLÍVARES:</span>
+                  <span className="text-sm font-extrabold text-[#222629] font-mono">
                     Bs.{" "}
                     {cartTotalVes.toLocaleString("es-VE", {
                       minimumFractionDigits: 2,
@@ -1937,24 +1943,24 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 </div>
               </div>
 
-              {/* Action Buttons: Dar Avance de Efectivo & Facturar Venta */}
+              {/* Action Buttons: Dar Avance de Efectivo (#248F78) & Facturar Venta (#B85A3A) */}
               <div className="space-y-2">
                 <button
                   type="button"
                   id="btn-open-avance-modal"
                   onClick={() => setIsAvanceModalOpen(true)}
-                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 text-emerald-200 font-bold text-xs flex items-center justify-between transition-all cursor-pointer shadow-sm"
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#248F78]/15 hover:bg-[#248F78]/25 border border-[#248F78]/40 text-[#248F78] font-bold text-xs flex items-center justify-between transition-all cursor-pointer shadow-sm"
                 >
                   <span className="flex items-center gap-2">
-                    <Banknote className="w-4 h-4 text-emerald-400" />
+                    <Banknote className="w-4 h-4 text-[#248F78]" />
                     <span>💸 Dar Avance de Efectivo (Cobro por Punto)</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-extrabold">
+                  <span className="px-2 py-0.5 rounded-lg bg-[#248F78] text-white faraday-keep-white font-mono text-[11px] font-extrabold">
                     +{avancePorcentaje}% Ganancia
                   </span>
                 </button>
 
-                {/* Big Facturar Venta Button */}
+                {/* Big Facturar Venta Button (Terracota Cálido #B85A3A) */}
                 <button
                   type="button"
                   id="btn-open-pay-modal"
@@ -1963,7 +1969,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     setIsPayModalOpen(true);
                   }}
                   disabled={cart.length === 0}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 disabled:opacity-40 disabled:hover:from-amber-500 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 transition-all active:scale-[0.99] cursor-pointer"
+                  className="w-full py-3.5 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] disabled:opacity-45 disabled:hover:bg-[#B85A3A] text-white faraday-keep-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#B85A3A]/30 border border-white/60 transition-all active:scale-[0.99] cursor-pointer"
                 >
                   <DollarSign className="w-5 h-5" />
                   <span>Facturar Venta</span>
@@ -2375,15 +2381,15 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
       {bodegaTab === "caja" && (
         <div className="space-y-4">
           {/* Sub-navigation inside Caja Tab */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#12141a] p-2.5 rounded-2xl border border-slate-800">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 faraday-glass-bar p-2.5 rounded-2xl border border-white/65">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setCajaSubTab("actual")}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   cajaSubTab === "actual"
-                    ? "bg-amber-500 text-slate-950 shadow-md font-black"
-                    : "text-slate-400 hover:text-white bg-slate-900/60"
+                    ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-black"
+                    : "bg-white/60 hover:bg-white/90 text-[#222629] border border-white/75"
                 }`}
               >
                 <Calculator className="w-4 h-4" />
@@ -2395,13 +2401,19 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                 onClick={() => setCajaSubTab("historial")}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   cajaSubTab === "historial"
-                    ? "bg-amber-500 text-slate-950 shadow-md font-black"
-                    : "text-slate-400 hover:text-white bg-slate-900/60"
+                    ? "bg-[#B85A3A] text-white faraday-keep-white shadow-sm font-black"
+                    : "bg-white/60 hover:bg-white/90 text-[#222629] border border-white/75"
                 }`}
               >
-                <HistoryIcon className="w-4 h-4 text-amber-400" />
+                <HistoryIcon className={`w-4 h-4 ${cajaSubTab === "historial" ? "text-white" : "text-[#9B4628]"}`} />
                 <span>Historial de Cierres Anteriores</span>
-                <span className="px-1.5 py-0.5 rounded-full bg-slate-950 text-amber-300 text-[10px] font-mono font-bold">
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                    cajaSubTab === "historial"
+                      ? "bg-[#222629] text-white faraday-keep-white"
+                      : "bg-[#222629]/12 text-[#222629]"
+                  }`}
+                >
                   {cierresHistory.length}
                 </span>
               </button>
@@ -2413,7 +2425,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="px-3 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-[#7B61C9]/15 hover:bg-[#7B61C9]/25 text-[#5B43AB] border border-[#7B61C9]/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                     title="Imprimir reporte o Guardar como PDF"
                   >
                     <FileDown className="w-3.5 h-3.5" />
@@ -2424,10 +2436,10 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     type="button"
                     onClick={() => setIsClearHistoryConfirmOpen(true)}
                     disabled={cierresHistory.length === 0}
-                    className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-[#B42E46] border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     title="Limpiar todos los registros de cierres de caja anteriores"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                    <Trash2 className="w-3.5 h-3.5" />
                     <span>Limpiar Historial</span>
                   </button>
                 </>
@@ -2910,8 +2922,8 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1 bg-[#14161f] border border-slate-800 rounded-xl px-2.5 py-1.5 text-[11px]">
-                <span className="text-slate-400">Columnas por fila:</span>
+              <div className="flex items-center gap-1 bg-white/60 border border-white/75 rounded-xl px-2.5 py-1.5 text-[11px]">
+                <span className="text-[#5C646D] font-medium">Columnas por fila:</span>
                 {([2, 3, 4, 6] as const).map((cols) => (
                   <button
                     key={cols}
@@ -2922,8 +2934,8 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     }}
                     className={`w-6 h-5 rounded font-mono font-bold cursor-pointer transition-colors ${
                       anaquelGridCols === cols
-                        ? "bg-amber-500 text-slate-950"
-                        : "text-slate-400 hover:text-white bg-slate-900"
+                        ? "bg-[#B85A3A] text-white faraday-keep-white shadow-xs"
+                        : "text-[#5C646D] hover:text-[#222629] bg-white/70 hover:bg-white"
                     }`}
                   >
                     {cols}
@@ -2933,7 +2945,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-white/70 hover:bg-white text-[#222629] border border-white/80 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Imprimir Cartelitos</span>
@@ -3955,112 +3967,115 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
       {/* ========================================================= */}
       {isNewFiadoModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#12141a] border border-amber-500/40 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
-            <div className="bg-[#181b24] px-4 py-3 border-b border-slate-800 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2 text-white font-bold text-sm">
-                <UserPlus className="w-4 h-4 text-amber-400" />
+          <div className="bg-[#12141a] border border-white/80 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
+            <div className="bg-white/50 px-4 py-3 border-b border-white/75 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 text-[#222629] font-bold text-sm">
+                <UserPlus className="w-4 h-4 text-[#9B4628]" />
                 <span>Agregar Vecino a la Libreta de Fiados</span>
               </div>
               <button
+                type="button"
                 onClick={() => setIsNewFiadoModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1"
+                className="text-[#5C646D] hover:text-[#222629] p-1 rounded-lg hover:bg-white/70 transition-colors cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddNewFiado} className="p-4 space-y-3 overflow-y-auto flex-1 min-h-0">
-              <div>
-                <label className="text-xs text-slate-300 font-bold block mb-1">
-                  Nombre del Vecino / Familia:
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newFiadoNombre}
-                  onChange={(e) => setNewFiadoNombre(e.target.value)}
-                  placeholder="Ej: Doña Rosa (Casa #5)"
-                  className="w-full bg-[#0e1017] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-300 font-bold block mb-1">
-                  Teléfono / WhatsApp:
-                </label>
-                <input
-                  type="text"
-                  value={newFiadoTelefono}
-                  onChange={(e) => setNewFiadoTelefono(e.target.value)}
-                  placeholder="Ej: 0414-9876543"
-                  className="w-full bg-[#0e1017] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-slate-300 font-bold block mb-1">
-                  Dirección o Referencia:
-                </label>
-                <input
-                  type="text"
-                  value={newFiadoDireccion}
-                  onChange={(e) => setNewFiadoDireccion(e.target.value)}
-                  placeholder="Ej: Vereda 3, Casa #14"
-                  className="w-full bg-[#0e1017] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none"
-                />
-              </div>
-
-              {/* Campo para colocar el monto de deuda directamente */}
-              <div className="bg-[#0e1017] p-3 rounded-xl border border-amber-500/30 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs text-amber-300 font-bold flex items-center gap-1.5">
-                    <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Monto de Deuda Inicial ($ USD):</span>
+            <form onSubmit={handleAddNewFiado} className="flex flex-col flex-1 min-h-0">
+              <div className="p-4 space-y-3 overflow-y-auto flex-1 min-h-0">
+                <div>
+                  <label className="text-xs text-[#222629] font-bold block mb-1">
+                    Nombre del Vecino / Familia:
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    (Opcional)
-                  </span>
-                </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-400 font-mono">
-                    $
-                  </span>
                   <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={newFiadoDeudaInicial}
-                    onChange={(e) =>
-                      setNewFiadoDeudaInicial(
-                        e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value))
-                      )
-                    }
-                    placeholder="0.00 (Ej: 15.00)"
-                    className="w-full bg-[#14161f] border border-amber-500/50 rounded-xl pl-7 pr-3 py-2 text-sm text-white font-mono font-bold focus:border-amber-400 focus:outline-none"
+                    type="text"
+                    required
+                    value={newFiadoNombre}
+                    onChange={(e) => setNewFiadoNombre(e.target.value)}
+                    placeholder="Ej: Doña Rosa (Casa #5)"
+                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#C66B49] focus:outline-none"
+                    autoFocus
                   />
                 </div>
-                {typeof newFiadoDeudaInicial === "number" && newFiadoDeudaInicial > 0 && (
-                  <div className="text-[11px] text-amber-400/90 font-mono flex items-center justify-between pt-0.5">
-                    <span>Equivalente en Bolívares:</span>
-                    <span className="font-bold">
-                      ≈ Bs. {(newFiadoDeudaInicial * bcvRate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Tasa: Bs. {bcvRate.toFixed(2)})
+
+                <div>
+                  <label className="text-xs text-[#222629] font-bold block mb-1">
+                    Teléfono / WhatsApp:
+                  </label>
+                  <input
+                    type="text"
+                    value={newFiadoTelefono}
+                    onChange={(e) => setNewFiadoTelefono(e.target.value)}
+                    placeholder="Ej: 0414-9876543"
+                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#C66B49] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-[#222629] font-bold block mb-1">
+                    Dirección o Referencia:
+                  </label>
+                  <input
+                    type="text"
+                    value={newFiadoDireccion}
+                    onChange={(e) => setNewFiadoDireccion(e.target.value)}
+                    placeholder="Ej: Vereda 3, Casa #14"
+                    className="w-full bg-white/75 border border-white/85 rounded-xl px-3 py-2 text-xs text-[#222629] placeholder-[#5C646D] focus:border-[#C66B49] focus:outline-none"
+                  />
+                </div>
+
+                {/* Campo para colocar el monto de deuda directamente */}
+                <div className="bg-[#C66B49]/12 p-3 rounded-xl border border-[#C66B49]/35 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-[#9B4628] font-bold flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5 text-[#9B4628]" />
+                      <span>Monto de Deuda Inicial ($ USD):</span>
+                    </label>
+                    <span className="text-[10px] text-[#5C646D] font-mono">
+                      (Opcional)
                     </span>
                   </div>
-                )}
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none text-sm font-bold text-[#222629] font-mono">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={newFiadoDeudaInicial}
+                      onChange={(e) =>
+                        setNewFiadoDeudaInicial(
+                          e.target.value === "" ? "" : Math.max(0, parseFloat(e.target.value))
+                        )
+                      }
+                      placeholder="0.00 (Ej: 15.00)"
+                      className="w-full bg-white/80 border border-[#C66B49]/50 rounded-xl pl-7 pr-3 py-2 text-sm text-[#222629] placeholder-[#5C646D] font-mono font-bold focus:border-[#C66B49] focus:outline-none"
+                    />
+                  </div>
+                  {typeof newFiadoDeudaInicial === "number" && newFiadoDeudaInicial > 0 && (
+                    <div className="text-[11px] text-black font-medium font-mono flex items-center justify-between pt-0.5">
+                      <span>Equivalente en Bolívares:</span>
+                      <span className="font-bold text-black">
+                        ≈ Bs. {(newFiadoDeudaInicial * bcvRate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Tasa: Bs. {bcvRate.toFixed(2)})
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="bg-[#181b24] px-4 py-3 -mx-4 -mb-4 mt-4 border-t border-slate-800 flex items-center justify-between shrink-0">
+              <div className="bg-white/50 px-4 py-3 border-t border-white/75 flex items-center justify-between shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsNewFiadoModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700"
+                  className="px-4 py-2 rounded-xl bg-white/75 hover:bg-white text-[#222629] border border-white/80 text-xs font-semibold cursor-pointer transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow"
+                  className="px-5 py-2 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] text-white faraday-keep-white text-xs font-extrabold shadow-sm cursor-pointer transition-colors"
                 >
                   + Guardar Vecino
                 </button>

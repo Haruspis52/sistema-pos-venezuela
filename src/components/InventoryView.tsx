@@ -974,7 +974,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           controller={colResizer}
           title="Configurar Tamaño de Columnas • Catálogo de Inventario"
         />
-        <div className="overflow-x-auto max-h-[660px] overflow-y-auto overscroll-auto">
+        <div className="overflow-x-auto max-h-[calc(100vh-250px)] min-h-[380px] overflow-y-auto overscroll-auto">
           <table
             data-resizable-table={colResizer.tableId}
             className="w-full text-left text-xs text-slate-300"
@@ -984,7 +984,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <th
                   data-col="codigo"
                   onClick={() => handleToggleSortColumn("codigo")}
-                  className="py-3 px-3 cursor-pointer hover:text-white select-none transition-colors relative"
+                  className="py-2 px-2.5 cursor-pointer hover:text-white select-none transition-colors relative"
                   title="Clic para alternar orden por Código de Barras"
                 >
                   <div className="flex items-center gap-1 pr-2">
@@ -998,7 +998,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="nombre" className="py-3 px-3 relative">
+                <th data-col="nombre" className="py-2 px-2.5 relative">
                   <div className="flex items-center justify-between gap-1 pr-2">
                     <div
                       onClick={() => handleToggleSortColumn("nombre")}
@@ -1032,7 +1032,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="categoria" className="py-3 px-3 relative">
+                <th data-col="categoria" className="py-2 px-2.5 relative">
                   <span className="pr-2">Categoría</span>
                   <ColumnResizeHandle
                     colKey="categoria"
@@ -1043,7 +1043,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <th
                   data-col="stock"
                   onClick={() => handleToggleSortColumn("stock")}
-                  className="py-3 px-3 text-center cursor-pointer hover:text-white select-none transition-colors relative"
+                  className="py-2 px-2.5 text-center cursor-pointer hover:text-white select-none transition-colors relative"
                   title="Clic para alternar orden por Stock"
                 >
                   <div className="flex items-center justify-center gap-1 pr-2">
@@ -1057,7 +1057,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="alicuota" className="py-3 px-3 text-center relative">
+                <th data-col="alicuota" className="py-2 px-2.5 text-center relative">
                   <span className="pr-2">Alícuota</span>
                   <ColumnResizeHandle
                     colKey="alicuota"
@@ -1066,7 +1066,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   />
                 </th>
                 {permissions.puedeVerCostosYMargenes && (
-                  <th data-col="costo" className="py-3 px-3 text-right relative">
+                  <th data-col="costo" className="py-2 px-2.5 text-right relative">
                     <span className="pr-2">Costo PMP ($/Bs)</span>
                     <ColumnResizeHandle
                       colKey="costo"
@@ -1078,7 +1078,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <th
                   data-col="precio"
                   onClick={() => handleToggleSortColumn("precio")}
-                  className="py-3 px-3 text-right cursor-pointer hover:text-white select-none transition-colors relative"
+                  className="py-2 px-2.5 text-right cursor-pointer hover:text-white select-none transition-colors relative"
                   title="Clic para alternar orden por Precio de Venta"
                 >
                   <div className="flex items-center justify-end gap-1 pr-2">
@@ -1096,7 +1096,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   <th
                     data-col="margen"
                     onClick={() => handleToggleSortColumn("margen")}
-                    className="py-3 px-3 text-center cursor-pointer hover:text-white select-none transition-colors relative"
+                    className="py-2 px-2.5 text-center cursor-pointer hover:text-white select-none transition-colors relative"
                     title="Clic para alternar orden por Margen"
                   >
                     <div className="flex items-center justify-center gap-1 pr-2">
@@ -1114,7 +1114,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <th
                   data-col="estado"
                   onClick={() => handleToggleSortColumn("vencimiento")}
-                  className="py-3 px-3 text-center cursor-pointer hover:text-white select-none transition-colors relative"
+                  className="py-2 px-2.5 text-center cursor-pointer hover:text-white select-none transition-colors relative"
                   title="Clic para ordenar por Fecha de Vencimiento más próxima"
                 >
                   <div className="flex items-center justify-center gap-1 pr-2">
@@ -1127,7 +1127,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="acciones" className="py-3 px-3 text-center relative">
+                <th data-col="acciones" className="py-2 px-2.5 text-center relative">
                   <span className="pr-2">Acciones</span>
                   <ColumnResizeHandle
                     colKey="acciones"
@@ -1160,7 +1160,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
                   return (
                     <tr key={`prod-row-${p.id}-${p.codigo_barras || ""}`} className="hover:bg-slate-800/40 transition-colors">
-                      <td data-col="codigo" className="py-3 px-3 font-mono text-slate-400 select-all text-[11px] truncate">
+                      <td data-col="codigo" className="py-2 px-2.5 font-mono text-slate-400 select-all text-[11px] truncate">
                         <div className="truncate">{p.codigo_barras || "N/A"}</div>
                         {p.lote && (
                           <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-slate-800/90 text-slate-300 border border-slate-700 text-[9.5px] font-mono">
@@ -1176,7 +1176,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         return (
                           <td
                             data-col="nombre"
-                            className={`py-3 px-3 transition-all ${
+                            className={`py-2 px-2.5 transition-all ${
                               isExpanded
                                 ? "whitespace-normal break-words"
                                 : "truncate"
@@ -1242,12 +1242,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           </td>
                         );
                       })()}
-                      <td data-col="categoria" className="py-3 px-3 truncate">
+                      <td data-col="categoria" className="py-2 px-2.5 truncate">
                         <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[11px] border border-slate-700/60">
                           {p.categoria_nombre || "General"}
                         </span>
                       </td>
-                      <td data-col="stock" className="py-3 px-3 text-center">
+                      <td data-col="stock" className="py-2 px-2.5 text-center">
                         <button
                           type="button"
                           onClick={() => {
@@ -1277,7 +1277,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           )}
                         </button>
                       </td>
-                      <td data-col="alicuota" className="py-3 px-3 text-center">
+                      <td data-col="alicuota" className="py-2 px-2.5 text-center">
                         <span
                           className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold ${
                             p.alicuota_iva === 0
@@ -1289,21 +1289,21 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         </span>
                       </td>
                       {permissions.puedeVerCostosYMargenes && (
-                        <td data-col="costo" className="py-3 px-3 text-right font-mono">
+                        <td data-col="costo" className="py-2 px-2.5 text-right font-mono">
                           <div className="text-slate-300">${currentPmp.toFixed(2)}</div>
                           <div className="text-[10px] text-slate-500">Bs. {costVes.toFixed(2)}</div>
                         </td>
                       )}
-                      <td data-col="precio" className="py-3 px-3 text-right font-mono font-bold">
+                      <td data-col="precio" className="py-2 px-2.5 text-right font-mono font-bold">
                         <div className="text-white">${p.precio_venta.toFixed(2)}</div>
                         <div className="text-[10px] text-amber-400">Bs. {saleVes.toFixed(2)}</div>
                       </td>
                       {permissions.puedeVerCostosYMargenes && (
-                        <td data-col="margen" className="py-3 px-3 text-center font-mono text-blue-400 font-semibold">
+                        <td data-col="margen" className="py-2 px-2.5 text-center font-mono text-blue-400 font-semibold">
                           {marginPercent}%
                         </td>
                       )}
-                      <td data-col="estado" className="py-3 px-3 text-center">
+                      <td data-col="estado" className="py-2 px-2.5 text-center">
                         <div className="flex flex-col items-center justify-center gap-1">
                           {isOutOfStock ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950/60 text-rose-400 border border-rose-800/60">
@@ -1342,7 +1342,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           )}
                         </div>
                       </td>
-                      <td data-col="acciones" className="py-3 px-3 text-center">
+                      <td data-col="acciones" className="py-2 px-2.5 text-center">
                         <div className="flex items-center justify-center gap-1">
                           {permissions.puedeAjustarStockManual && (
                             <button

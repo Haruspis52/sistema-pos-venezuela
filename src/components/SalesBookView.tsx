@@ -45,7 +45,7 @@ interface SalesBookViewProps {
   currentUser?: SystemUser;
 }
 
-export const SalesBookView: React.FC<SalesBookViewProps> = ({
+export const SalesBookView: React.FC<SalesBookViewProps> = React.memo(({
   sales,
   bcvRate,
   onClearSales,
@@ -469,14 +469,14 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
           controller={colResizer}
           title="Configurar Tamaño de Columnas • Libro de Ventas Fiscal"
         />
-        <div className="overflow-x-auto max-h-[500px]">
+        <div className="overflow-x-auto max-h-[calc(100vh-270px)] min-h-[360px]">
           <table
             data-resizable-table={colResizer.tableId}
             className="w-full text-left text-xs border-collapse"
           >
-            <thead className="bg-[#181b24] text-slate-400 uppercase text-[10px] tracking-wider sticky top-0 z-10 border-b border-slate-800">
+            <thead className="bg-[#EDE6D8] text-[#5C646D] uppercase text-[10px] tracking-wider sticky top-0 z-10 border-b border-white/75">
               <tr>
-                <th data-col="fecha" className="px-3.5 py-3 relative">
+                <th data-col="fecha" className="px-2.5 py-2 relative">
                   <span className="pr-2">Fecha / Hora</span>
                   <ColumnResizeHandle
                     colKey="fecha"
@@ -484,7 +484,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="factura" className="px-3.5 py-3 relative">
+                <th data-col="factura" className="px-2.5 py-2 relative">
                   <span className="pr-2">N° Factura / Estado</span>
                   <ColumnResizeHandle
                     colKey="factura"
@@ -492,7 +492,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="control" className="px-3.5 py-3 relative">
+                <th data-col="control" className="px-2.5 py-2 relative">
                   <span className="pr-2">N° Control</span>
                   <ColumnResizeHandle
                     colKey="control"
@@ -500,7 +500,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="cliente" className="px-3.5 py-3 relative">
+                <th data-col="cliente" className="px-2.5 py-2 relative">
                   <span className="pr-2">Cliente / RIF</span>
                   <ColumnResizeHandle
                     colKey="cliente"
@@ -508,7 +508,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="base" className="px-3.5 py-3 text-right relative">
+                <th data-col="base" className="px-2.5 py-2 text-right relative">
                   <span className="pr-2">Base Imponible</span>
                   <ColumnResizeHandle
                     colKey="base"
@@ -516,7 +516,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="iva" className="px-3.5 py-3 text-right relative">
+                <th data-col="iva" className="px-2.5 py-2 text-right relative">
                   <span className="pr-2">IVA (16%)</span>
                   <ColumnResizeHandle
                     colKey="iva"
@@ -524,7 +524,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="igtf" className="px-3.5 py-3 text-right relative">
+                <th data-col="igtf" className="px-2.5 py-2 text-right relative">
                   <span className="pr-2">IGTF (3%)</span>
                   <ColumnResizeHandle
                     colKey="igtf"
@@ -532,7 +532,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="total" className="px-3.5 py-3 text-right relative">
+                <th data-col="total" className="px-2.5 py-2 text-right relative">
                   <span className="pr-2">Total Facturado</span>
                   <ColumnResizeHandle
                     colKey="total"
@@ -540,7 +540,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="pago" className="px-3.5 py-3 text-center relative">
+                <th data-col="pago" className="px-2.5 py-2 text-center relative">
                   <span className="pr-2">Pago / Desglose</span>
                   <ColumnResizeHandle
                     colKey="pago"
@@ -548,7 +548,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                     onStartResize={colResizer.startResize}
                   />
                 </th>
-                <th data-col="acciones" className="px-3.5 py-3 text-center relative">
+                <th data-col="acciones" className="px-2.5 py-2 text-center relative">
                   <span className="pr-2">Acciones</span>
                   <ColumnResizeHandle
                     colKey="acciones"
@@ -578,7 +578,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                           : "hover:bg-slate-800/40"
                       }`}
                     >
-                      <td data-col="fecha" className="px-3.5 py-2.5 text-slate-400 whitespace-nowrap truncate">
+                      <td data-col="fecha" className="px-2.5 py-2 text-slate-400 whitespace-nowrap truncate">
                         <div>{s.fecha}</div>
                         {s.usuario && (
                           <div className="text-[10px] text-blue-400/90 font-sans flex items-center gap-1 mt-0.5 truncate">
@@ -587,7 +587,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                           </div>
                         )}
                       </td>
-                      <td data-col="factura" className="px-3.5 py-2.5 whitespace-nowrap truncate">
+                      <td data-col="factura" className="px-2.5 py-2 whitespace-nowrap truncate">
                         <div className={`font-bold ${isVoided ? "text-rose-400 line-through" : "text-white"}`}>
                           {s.numero_factura}
                         </div>
@@ -601,23 +601,23 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                           </span>
                         )}
                       </td>
-                      <td data-col="control" className="px-3.5 py-2.5 text-slate-300 whitespace-nowrap truncate">
+                      <td data-col="control" className="px-2.5 py-2 text-slate-300 whitespace-nowrap truncate">
                         {s.numero_control}
                       </td>
-                      <td data-col="cliente" className="px-3.5 py-2.5 font-sans whitespace-nowrap truncate">
+                      <td data-col="cliente" className="px-2.5 py-2 font-sans whitespace-nowrap truncate">
                         <div className="font-bold text-slate-200 truncate">{s.cliente_nombre}</div>
                         <div className="text-[10px] text-slate-400 font-mono truncate">{s.cliente_rif}</div>
                       </td>
-                      <td data-col="base" className={`px-3.5 py-2.5 text-right ${isVoided ? "text-slate-500 line-through" : "text-slate-300"}`}>
+                      <td data-col="base" className={`px-2.5 py-2 text-right ${isVoided ? "text-slate-500 line-through" : "text-slate-300"}`}>
                         Bs. {(s.base_imponible_ves || 0).toFixed(2)}
                       </td>
-                      <td data-col="iva" className={`px-3.5 py-2.5 text-right ${isVoided ? "text-slate-500 line-through" : "text-purple-300"}`}>
+                      <td data-col="iva" className={`px-2.5 py-2 text-right ${isVoided ? "text-slate-500 line-through" : "text-purple-300"}`}>
                         Bs. {(s.iva_ves || 0).toFixed(2)}
                       </td>
-                      <td data-col="igtf" className={`px-3.5 py-2.5 text-right ${isVoided ? "text-slate-500 line-through" : "text-amber-300"}`}>
+                      <td data-col="igtf" className={`px-2.5 py-2 text-right ${isVoided ? "text-slate-500 line-through" : "text-amber-300"}`}>
                         {s.igtf_ves && s.igtf_ves > 0 ? `Bs. ${s.igtf_ves.toFixed(2)}` : "-"}
                       </td>
-                      <td data-col="total" className="px-3.5 py-2.5 text-right font-bold">
+                      <td data-col="total" className="px-2.5 py-2 text-right font-bold">
                         <div className={isVoided ? "text-rose-400 line-through" : "text-emerald-400"}>
                           Bs. {(s.total_ves || 0).toFixed(2)}
                         </div>
@@ -625,7 +625,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                           ${(s.total_usd || 0).toFixed(2)}
                         </div>
                       </td>
-                      <td data-col="pago" className="px-3.5 py-2.5 text-center font-sans whitespace-nowrap truncate">
+                      <td data-col="pago" className="px-2.5 py-2 text-center font-sans whitespace-nowrap truncate">
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                             s.metodo_pago === "Pago Mixto ($ + Bs)"
@@ -652,7 +652,7 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
                           </div>
                         )}
                       </td>
-                      <td data-col="acciones" className="px-3.5 py-2.5 text-center font-sans">
+                      <td data-col="acciones" className="px-2.5 py-2 text-center font-sans">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
@@ -1145,4 +1145,4 @@ export const SalesBookView: React.FC<SalesBookViewProps> = ({
       )}
     </div>
   );
-};
+});

@@ -142,25 +142,27 @@ export const GeminiInvoiceView: React.FC<GeminiInvoiceViewProps> = ({
   return (
     <div className="space-y-4">
       {/* Informative Hybrid Banner */}
-      <div className="bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-slate-900 border border-blue-800/40 rounded-xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-slate-300">
+      <div className="faraday-glass-panel bg-gradient-to-r from-[#EEE8DB]/85 via-white/80 to-[#A592DC]/25 border border-white/75 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-[#5C646D]">
         <div className="flex items-start gap-3">
-          <Sparkles className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="w-9 h-9 rounded-xl bg-[#7B61C9]/15 border border-[#7B61C9]/25 flex items-center justify-center shrink-0 mt-0.5">
+            <Sparkles className="w-4 h-4 text-[#7B61C9]" />
+          </div>
           <div className="space-y-1">
-            <p className="font-bold text-white text-sm flex items-center gap-2">
+            <p className="font-bold text-[#222629] text-sm flex flex-wrap items-center gap-2">
               <span>Módulo de Digitalización de Facturas con Gemini AI (Híbrido)</span>
               {customApiKey ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 font-bold">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#248F78]/15 text-[#1D7A66] border border-[#248F78]/35 flex items-center gap-1 font-bold">
+                  <CheckCircle2 className="w-3 h-3" />
                   API Key Personalizada Activa
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#C66B49]/18 text-[#9B4628] border border-[#C66B49]/45 font-bold">
                   API Key por Configurar
                 </span>
               )}
             </p>
-            <p className="text-slate-300 leading-relaxed max-w-2xl">
-              Sube o toma una foto de la factura de un proveedor. El modelo <strong>gemini-3.8-flash</strong>{" "}
+            <p className="text-[#5C646D] leading-relaxed max-w-2xl">
+              Sube o toma una foto de la factura de un proveedor. El modelo <strong className="text-[#222629]">gemini-3.8-flash</strong>{" "}
               extrae automáticamente el nombre del proveedor, folio y cada producto adquirido con su costo y sugerencia de venta.
             </p>
           </div>
@@ -172,13 +174,13 @@ export const GeminiInvoiceView: React.FC<GeminiInvoiceViewProps> = ({
             type="button"
             id="btn-open-gemini-key-modal"
             onClick={() => setIsApiKeyModalOpen(true)}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border shadow-md ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all border shadow-sm cursor-pointer ${
               customApiKey
-                ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700"
-                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white border-blue-500/50 shadow-blue-950/50 animate-pulse"
+                ? "bg-white/75 hover:bg-white text-[#222629] border-white/80"
+                : "bg-[#7B61C9] hover:bg-[#6A50B8] text-white faraday-keep-white border-[#7B61C9] shadow-[#7B61C9]/25"
             }`}
           >
-            <KeyRound className="w-4 h-4 text-amber-400" />
+            <KeyRound className={`w-4 h-4 ${customApiKey ? "text-[#9B4628]" : "text-[#FDE68A]"}`} />
             <span>{customApiKey ? "Cambiar API Key de Gemini" : "Ingresar API Key de Gemini"}</span>
           </button>
         </div>

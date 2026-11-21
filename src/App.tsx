@@ -3,19 +3,18 @@ import { Header } from "./components/Header";
 import { InventoryView } from "./components/InventoryView";
 import { PosView } from "./components/PosView";
 import { BodegaEditionView } from "./components/BodegaEditionView";
+import { SalesBookView } from "./components/SalesBookView";
 
-const MovementsView = React.lazy(() =>
-  import("./components/MovementsView").then((m) => ({ default: m.MovementsView }))
-);
-const SalesBookView = React.lazy(() =>
-  import("./components/SalesBookView").then((m) => ({ default: m.SalesBookView }))
-);
-const GeminiInvoiceView = React.lazy(() =>
-  import("./components/GeminiInvoiceView").then((m) => ({ default: m.GeminiInvoiceView }))
-);
-const DashboardView = React.lazy(() =>
-  import("./components/DashboardView").then((m) => ({ default: m.DashboardView }))
-);
+const loadMovementsView = () =>
+  import("./components/MovementsView").then((m) => ({ default: m.MovementsView }));
+const loadGeminiInvoiceView = () =>
+  import("./components/GeminiInvoiceView").then((m) => ({ default: m.GeminiInvoiceView }));
+const loadDashboardView = () =>
+  import("./components/DashboardView").then((m) => ({ default: m.DashboardView }));
+
+const MovementsView = React.lazy(loadMovementsView);
+const GeminiInvoiceView = React.lazy(loadGeminiInvoiceView);
+const DashboardView = React.lazy(loadDashboardView);
 import {
   Producto,
   Categoria,
@@ -135,6 +134,9 @@ import {
   TrendingUp,
   X,
   CheckCircle2,
+  BookOpen,
+  Calculator,
+  Tag,
 } from "lucide-react";
 
 export function App() {
@@ -142,6 +144,9 @@ export function App() {
   const [activeCtkTab, setActiveCtkTab] = useState<
     "dashboard" | "inventory" | "pos" | "bodega" | "sales_book" | "movements" | "invoice_ai"
   >("bodega");
+  const [activeBodegaTab, setActiveBodegaTab] = useState<
+    "mostrador" | "fiados" | "caja" | "etiquetas"
+  >("mostrador");
 
   // SQLite data state
   const [products, setProducts] = useState<Producto[]>([]);
@@ -264,13 +269,21 @@ export function App() {
   // Startup 3-second smooth icon animation state
   const [showStartupSplash, setShowStartupSplash] = useState<boolean>(true);
 
-  // Initialize Logger Global Handlers & Safety fallback timer for 3s splash
+  // Initialize Logger Global Handlers, safety fallback timer for splash, and idle prefetch for secondary tabs
   useEffect(() => {
     logger.initGlobalHandlers();
     const splashTimer = setTimeout(() => {
       setShowStartupSplash(false);
     }, 3300);
-    return () => clearTimeout(splashTimer);
+    const prefetchTimer = setTimeout(() => {
+      loadMovementsView().catch(() => {});
+      loadGeminiInvoiceView().catch(() => {});
+      loadDashboardView().catch(() => {});
+    }, 1000);
+    return () => {
+      clearTimeout(splashTimer);
+      clearTimeout(prefetchTimer);
+    };
   }, []);
 
   // Sync Logger Context with Current User and Active Tab
@@ -317,6 +330,7 @@ export function App() {
       if (e.key === "F2" || (e.altKey && e.key === "1")) {
         e.preventDefault();
         setActiveCtkTab("bodega");
+        setActiveBodegaTab("mostrador");
       }
 
       // F3 / Alt+2: Go to Product Catalog
@@ -1479,11 +1493,21 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0c0e12] text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className="faraday-theme-root min-h-screen bg-[#EEE8DB] text-[#222629] flex flex-col font-sans selection:bg-[#7B61C9] selection:text-white relative overflow-x-hidden">
+      {/* Orbes Difuminados de Armonía Triádica (Verde Agua #68B8A6 izq/centro, Violeta #7B61C9 y Lavanda #A592DC der) */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-20 left-[6%] w-[440px] h-[440px] rounded-full bg-[#68B8A6]/45 blur-[110px]" />
+        <div className="absolute top-[38%] left-[20%] w-[460px] h-[360px] rounded-full bg-[#68B8A6]/35 blur-[125px]" />
+        <div className="absolute top-[10%] left-[44%] w-[360px] h-[300px] rounded-full bg-white/70 blur-[100px]" />
+        <div className="absolute top-[14%] right-[8%] w-[420px] h-[380px] rounded-full bg-[#7B61C9]/30 blur-[120px]" />
+        <div className="absolute bottom-[6%] right-[10%] w-[480px] h-[400px] rounded-full bg-[#A592DC]/45 blur-[125px]" />
+        <div className="absolute bottom-[8%] left-[12%] w-[360px] h-[260px] rounded-full bg-[#E09F3E]/20 blur-[115px]" />
+      </div>
+
       {/* Animación de Inicio de 3 Segundos (FaradayPOS) */}
       {showStartupSplash && (
         <div
-          className="fixed inset-0 z-[100] bg-[#121723] flex flex-col items-center justify-center select-none pointer-events-none animate-faraday-splash-2s"
+          className="fixed inset-0 z-[100] bg-[#EEE8DB] flex flex-col items-center justify-center select-none pointer-events-none animate-faraday-splash-2s"
           onAnimationEnd={(e) => {
             if (e.target === e.currentTarget) {
               setShowStartupSplash(false);
@@ -1492,7 +1516,7 @@ export function App() {
           aria-hidden="true"
         >
           <div className="relative flex flex-col items-center gap-3 animate-faraday-icon-2s">
-            <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-3xl overflow-hidden">
+            <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-3xl overflow-hidden border border-white/70 shadow-xl">
               <img
                 src="/src/assets/images/faraday_pos_dark_icon_1794172646016.jpg"
                 alt="FaradayPOS"
@@ -1500,8 +1524,8 @@ export function App() {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-              Faraday<span className="text-emerald-300">POS</span>
+            <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#222629]">
+              Faraday<span className="text-[#248F78]">POS</span>
             </span>
           </div>
         </div>
@@ -1546,7 +1570,7 @@ export function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6">
+      <main className="relative flex-1 max-w-[1680px] w-full mx-auto px-2.5 py-2 lg:px-4 lg:py-2.5">
         {/* Banner de Aviso de Próximo Vencimiento */}
         <ExpirationWarningBanner
           license={clientLicense}
@@ -1556,142 +1580,187 @@ export function App() {
 
         {/* Toast Alert */}
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 bg-blue-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200 border border-blue-400/40">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-blue-200" />
-            <span>{toastMessage}</span>
+          <div className="fixed bottom-6 right-6 z-50 bg-[#248F78] backdrop-blur-md text-white faraday-keep-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200 border border-white/60">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
+            <span className="faraday-keep-white">{toastMessage}</span>
           </div>
         )}
 
         {/* Punto de Venta & Sistema de Inventario para Clientes */}
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-800 bg-[#161920] shadow-2xl overflow-hidden">
-            {/* Main Application Tab Bar */}
-            <div className="bg-[#14161c] px-4 pt-3 pb-2 border-b border-slate-800 flex items-center justify-between gap-2 overflow-x-auto">
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Pestaña Exclusiva de Edición Bodega */}
-                {appEdition === "bodega" && (
+        <div className="rounded-2xl faraday-glass-shell">
+          {/* Main Application Tab Bar (Unified Single Bar) */}
+          <div className="relative faraday-glass-bar rounded-t-2xl px-3 py-2 border-b border-white/60 flex items-center justify-between gap-2 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Pestañas Integradas de Edición Bodega */}
+              {appEdition === "bodega" && (
+                <>
                   <button
                     id="tab-bodega"
-                    onClick={() => setActiveCtkTab("bodega")}
-                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all border ${
-                      activeCtkTab === "bodega"
-                        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-950/40"
-                        : "bg-[#1d2028] text-amber-300 hover:text-amber-200 hover:bg-slate-800 border-amber-500/30"
+                    onClick={() => {
+                      setActiveCtkTab("bodega");
+                      setActiveBodegaTab("mostrador");
+                    }}
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all border cursor-pointer ${
+                      activeCtkTab === "bodega" && activeBodegaTab === "mostrador"
+                        ? "bg-[#E09F3E] text-[#222629] border-white/70 shadow-md shadow-[#E09F3E]/25"
+                        : "bg-white/45 text-[#222629] hover:bg-white/75 border-white/60"
                     }`}
                   >
                     <Store className="w-3.5 h-3.5" />
-                    <span>🏪 Mostrador</span>
+                    <span>Mostrador</span>
                   </button>
+
+                  <button
+                    id="tab-bodega-fiados"
+                    onClick={() => {
+                      setActiveCtkTab("bodega");
+                      setActiveBodegaTab("fiados");
+                    }}
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                      activeCtkTab === "bodega" && activeBodegaTab === "fiados"
+                        ? "bg-[#E09F3E] text-[#222629] font-extrabold border-white/70 shadow-md shadow-[#E09F3E]/25"
+                        : "bg-white/45 text-[#222629] hover:bg-white/75 border-white/60"
+                    }`}
+                  >
+                    <BookOpen className={`w-3.5 h-3.5 ${activeCtkTab === "bodega" && activeBodegaTab === "fiados" ? "text-[#222629]" : "text-[#E09F3E]"}`} />
+                    <span>Libreta</span>
+                  </button>
+
+                  <button
+                    id="tab-bodega-caja"
+                    onClick={() => {
+                      setActiveCtkTab("bodega");
+                      setActiveBodegaTab("caja");
+                    }}
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                      activeCtkTab === "bodega" && activeBodegaTab === "caja"
+                        ? "bg-[#E09F3E] text-[#222629] font-extrabold border-white/70 shadow-md shadow-[#E09F3E]/25"
+                        : "bg-white/45 text-[#222629] hover:bg-white/75 border-white/60"
+                    }`}
+                  >
+                    <Calculator className={`w-3.5 h-3.5 ${activeCtkTab === "bodega" && activeBodegaTab === "caja" ? "text-[#222629]" : "text-[#248F78]"}`} />
+                    <span>Caja</span>
+                  </button>
+
+                  <button
+                    id="tab-bodega-anaquel"
+                    onClick={() => {
+                      setActiveCtkTab("bodega");
+                      setActiveBodegaTab("etiquetas");
+                    }}
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                      activeCtkTab === "bodega" && activeBodegaTab === "etiquetas"
+                        ? "bg-[#E09F3E] text-[#222629] font-extrabold border-white/70 shadow-md shadow-[#E09F3E]/25"
+                        : "bg-white/45 text-[#222629] hover:bg-white/75 border-white/60"
+                    }`}
+                  >
+                    <Tag className={`w-3.5 h-3.5 ${activeCtkTab === "bodega" && activeBodegaTab === "etiquetas" ? "text-[#222629]" : "text-[#7B61C9]"}`} />
+                    <span>Anaquel</span>
+                  </button>
+
+                  <span className="h-5 w-px bg-[#222629]/15 mx-0.5 shrink-0" aria-hidden="true" />
+                </>
+              )}
+
+              {/* Pestañas de Edición Fiscal SENIAT */}
+              {appEdition === "fiscal" && (
+                <>
+                  <button
+                    id="tab-pos"
+                    onClick={() => setActiveCtkTab("pos")}
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                      activeCtkTab === "pos"
+                        ? "bg-[#E09F3E] text-[#222629] border-white/70 shadow-md shadow-[#E09F3E]/25"
+                        : "bg-white/45 text-[#5C646D] hover:text-[#222629] hover:bg-white/75 border-white/60"
+                    }`}
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span>Punto de Venta Fiscal (Prov. 00071)</span>
+                  </button>
+
+                  <button
+                    id="tab-movements"
+                    onClick={() => setActiveCtkTab("movements")}
+                    className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                      activeCtkTab === "movements"
+                        ? "bg-[#E09F3E] text-[#222629] border-white/70 shadow-md shadow-[#E09F3E]/25"
+                        : "bg-white/45 text-[#5C646D] hover:text-[#222629] hover:bg-white/75 border-white/60"
+                    }`}
+                  >
+                    <HistoryIcon className="w-3.5 h-3.5" />
+                    <span>Kardex Tributario (Art. 177)</span>
+                  </button>
+                </>
+              )}
+
+              {/* Pestaña: Libro de Ventas (disponible en ambas ediciones) */}
+              <button
+                id="tab-sales-book"
+                onClick={() => setActiveCtkTab("sales_book")}
+                className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                  activeCtkTab === "sales_book"
+                    ? "bg-[#E09F3E] text-[#222629] font-extrabold border-white/70 shadow-md shadow-[#E09F3E]/25"
+                    : "bg-white/45 text-[#222629] hover:bg-white/75 border-white/60"
+                }`}
+              >
+                <FileText className={`w-3.5 h-3.5 ${activeCtkTab === "sales_book" ? "text-[#222629]" : "text-[#248F78]"}`} />
+                <span>Libro de Ventas</span>
+                {sales.length > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                    activeCtkTab === "sales_book"
+                      ? "bg-[#222629] text-white faraday-keep-white"
+                      : "bg-[#248F78]/15 text-[#248F78]"
+                  }`}>
+                    {sales.length}
+                  </span>
                 )}
+              </button>
 
-                  {/* Pestañas de Edición Fiscal SENIAT */}
-                  {appEdition === "fiscal" && (
-                    <>
-                      <button
-                        id="tab-pos"
-                        onClick={() => setActiveCtkTab("pos")}
-                        className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                          activeCtkTab === "pos"
-                            ? "bg-blue-600 text-white shadow-md shadow-blue-900/40"
-                            : "bg-[#1d2028] text-slate-400 hover:text-white hover:bg-slate-800"
-                        }`}
-                      >
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                        <span>Punto de Venta Fiscal (Prov. 00071)</span>
-                      </button>
+              {/* Pestañas compartidas en ambas ediciones */}
+              <button
+                id="tab-inventory"
+                onClick={() => setActiveCtkTab("inventory")}
+                className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                  activeCtkTab === "inventory"
+                    ? "bg-[#E09F3E] text-[#222629] font-extrabold border-white/70 shadow-md shadow-[#E09F3E]/25"
+                    : "bg-white/45 text-[#222629] hover:bg-white/75 border-white/60"
+                }`}
+              >
+                <Package className={`w-3.5 h-3.5 ${activeCtkTab === "inventory" ? "text-[#222629]" : "text-[#5C646D]"}`} />
+                <span>Catálogo ({products.length})</span>
+              </button>
 
-                      <button
-                        id="tab-movements"
-                        onClick={() => setActiveCtkTab("movements")}
-                        className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                          activeCtkTab === "movements"
-                            ? "bg-blue-600 text-white shadow-md shadow-blue-900/40"
-                            : "bg-[#1d2028] text-slate-400 hover:text-white hover:bg-slate-800"
-                        }`}
-                      >
-                        <HistoryIcon className="w-3.5 h-3.5" />
-                        <span>Kardex Tributario (Art. 177)</span>
-                      </button>
-                    </>
-                  )}
+              {/* Pestaña: Dashboard Analítico */}
+              <button
+                id="tab-dashboard"
+                onClick={() => setActiveCtkTab("dashboard")}
+                className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all border cursor-pointer ${
+                  activeCtkTab === "dashboard"
+                    ? "bg-[#E09F3E] text-[#222629] border-white/70 shadow-md shadow-[#E09F3E]/25"
+                    : "bg-white/45 text-[#7B61C9] hover:bg-white/75 border-white/60"
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Dashboard</span>
+              </button>
 
-                  {/* Pestaña: Libro de Ventas (disponible en ambas ediciones) */}
-                  <button
-                    id="tab-sales-book"
-                    onClick={() => setActiveCtkTab("sales_book")}
-                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                      activeCtkTab === "sales_book"
-                        ? appEdition === "bodega"
-                          ? "bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-950/40"
-                          : "bg-blue-600 text-white shadow-md shadow-blue-900/40"
-                        : "bg-[#1d2028] text-slate-400 hover:text-white hover:bg-slate-800"
-                    }`}
-                  >
-                    <FileText className={`w-3.5 h-3.5 ${appEdition === "bodega" ? "text-amber-400" : "text-emerald-400"}`} />
-                    <span>Libro de Ventas</span>
-                    {sales.length > 0 && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                        appEdition === "bodega"
-                          ? activeCtkTab === "sales_book" ? "bg-slate-950 text-amber-300" : "bg-amber-500/20 text-amber-300"
-                          : activeCtkTab === "sales_book" ? "bg-slate-900 text-emerald-300" : "bg-emerald-500/20 text-emerald-300"
-                      }`}>
-                        {sales.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Pestañas compartidas en ambas ediciones */}
-                  <button
-                    id="tab-inventory"
-                    onClick={() => setActiveCtkTab("inventory")}
-                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                      activeCtkTab === "inventory"
-                        ? appEdition === "bodega"
-                          ? "bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-950/40"
-                          : "bg-blue-600 text-white shadow-md shadow-blue-900/40"
-                        : "bg-[#1d2028] text-slate-400 hover:text-white hover:bg-slate-800"
-                    }`}
-                  >
-                    <Package className="w-3.5 h-3.5" />
-                    <span>Catálogo de Productos ({products.length})</span>
-                  </button>
-
-                  {/* Pestaña: Dashboard Analítico (después de Catálogo de Productos) */}
-                  <button
-                    id="tab-dashboard"
-                    onClick={() => setActiveCtkTab("dashboard")}
-                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold transition-all border ${
-                      activeCtkTab === "dashboard"
-                        ? appEdition === "bodega"
-                          ? "bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-md shadow-amber-950/40"
-                          : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-400 shadow-lg shadow-blue-950/50"
-                        : "bg-[#1d2028] text-blue-300 hover:text-white hover:bg-slate-800 border-blue-500/30"
-                    }`}
-                  >
-                    <TrendingUp className="w-3.5 h-3.5" />
-                    <span>📊 Dashboard</span>
-                  </button>
-
-                  <button
-                    id="tab-invoice-ai"
-                    onClick={() => setActiveCtkTab("invoice_ai")}
-                    className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                      activeCtkTab === "invoice_ai"
-                        ? appEdition === "bodega"
-                          ? "bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-950/40"
-                          : "bg-blue-600 text-white shadow-md shadow-blue-900/40"
-                        : "bg-[#1d2028] text-slate-400 hover:text-white hover:bg-slate-800"
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Facturas de Proveedor (IA)</span>
-                  </button>
-                </div>
-              </div>
+              <button
+                id="tab-invoice-ai"
+                onClick={() => setActiveCtkTab("invoice_ai")}
+                className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+                  activeCtkTab === "invoice_ai"
+                    ? "bg-[#E09F3E] text-[#222629] font-extrabold border-white/70 shadow-md shadow-[#E09F3E]/25"
+                    : "bg-white/45 text-[#222629] hover:bg-white/75 border-white/60"
+                }`}
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${activeCtkTab === "invoice_ai" ? "text-[#222629]" : "text-[#E09F3E]"}`} />
+                <span>Facturas (IA)</span>
+              </button>
             </div>
+          </div>
 
-            {/* Inner Body */}
-              <div className="p-4 lg:p-6 bg-[#16181f]">
+          {/* Inner Body */}
+          <div className="relative p-3 lg:p-4 bg-transparent">
                 <Suspense
                   fallback={
                     <div className="py-16 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs font-mono">
@@ -1723,6 +1792,8 @@ export function App() {
                       onUserChange={(newUser) => setCurrentUser(newUser)}
                       onOpenCatalog={() => setActiveCtkTab("inventory")}
                       onOpenInvoiceAi={() => setActiveCtkTab("invoice_ai")}
+                      activeTab={activeBodegaTab}
+                      onTabChange={setActiveBodegaTab}
                     />
                   )}
 
@@ -1782,55 +1853,21 @@ export function App() {
                   )}
                 </Suspense>
               </div>
-
-              {/* Status Bar (Windows Bottom Bar) */}
-              <div className="bg-[#12141a] px-4 py-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 font-mono">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span>
-                    Servidor: <strong className="text-emerald-400">Node.js (Puerto 3000)</strong>
-                  </span>
-                  <span>•</span>
-                  <span>
-                    Tasa Oficial BCV:{" "}
-                    <strong className="text-amber-400">Bs. {bcvRate.toFixed(2)}</strong>
-                  </span>
-                  <span>•</span>
-                  <span>
-                    Factura Correlativo:{" "}
-                    <strong className="text-blue-400">
-                      00-{correlativos.facturaNum.toString().padStart(6, "0")}
-                    </strong>
-                  </span>
-                  <span>•</span>
-                  <span>
-                    Productos:{" "}
-                    <strong className="text-emerald-400">{products.length}</strong>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isOfflineMode ? "bg-amber-400" : "bg-emerald-400 animate-pulse"
-                    }`}
-                  ></span>
-                  <span>{isOfflineMode ? "Modo Local Offline" : "Gemini API Habilitada"}</span>
-                </div>
-              </div>
             </div>
         </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-[#12141a] py-3.5 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-3">
+      <footer className="relative z-10 border-t border-white/60 faraday-glass-bar py-2.5 text-xs text-[#5C646D]">
+        <div className="max-w-[1680px] mx-auto px-3 lg:px-5 flex flex-col md:flex-row items-center justify-between gap-3">
           <p className="text-center md:text-left">
-            <strong className="text-slate-300">FaradayPOS</strong> — Sistema de Inventario y Facturación para Comercios en Venezuela (SENIAT / Providencia SNAT/00071 / LISLR Art. 177) • Node.js + Express & React
+            <strong className="text-[#222629]">FaradayPOS</strong> — Sistema de Inventario y Facturación para Comercios en Venezuela (SENIAT / Providencia SNAT/00071 / LISLR Art. 177)
           </p>
 
-          <div className="flex items-center gap-3 text-slate-400 font-medium shrink-0 flex-wrap justify-center text-[11px]">
+          <div className="flex items-center gap-3 text-[#5C646D] font-medium shrink-0 flex-wrap justify-center text-[11px]">
             <button
               type="button"
               onClick={() => handleOpenTermsModal("terms")}
-              className="hover:text-blue-400 underline transition-colors cursor-pointer"
+              className="hover:text-[#7B61C9] underline transition-colors cursor-pointer"
             >
               Términos y Condiciones
             </button>
@@ -1838,7 +1875,7 @@ export function App() {
             <button
               type="button"
               onClick={() => handleOpenTermsModal("privacy")}
-              className="hover:text-indigo-400 underline transition-colors cursor-pointer"
+              className="hover:text-[#7B61C9] underline transition-colors cursor-pointer"
             >
               Política de Privacidad
             </button>
@@ -1846,7 +1883,7 @@ export function App() {
             <button
               type="button"
               onClick={() => handleOpenTermsModal("fiscal")}
-              className="hover:text-emerald-400 underline transition-colors cursor-pointer"
+              className="hover:text-[#248F78] underline transition-colors cursor-pointer"
             >
               Aviso Fiscal SENIAT
             </button>
@@ -1854,7 +1891,7 @@ export function App() {
             <button
               type="button"
               onClick={() => handleOpenTermsModal("certificate")}
-              className="hover:text-amber-400 font-bold underline transition-colors cursor-pointer"
+              className="text-[#222629] hover:text-[#E09F3E] font-bold underline transition-colors cursor-pointer"
             >
               Constancia Legal
             </button>

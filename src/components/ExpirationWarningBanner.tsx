@@ -49,19 +49,19 @@ export const ExpirationWarningBanner: React.FC<ExpirationWarningBannerProps> = (
   );
 
   return (
-    <div className="mb-4 rounded-2xl border-2 border-amber-500/80 bg-gradient-to-r from-amber-950/70 via-[#1f1a14] to-amber-950/70 p-4 shadow-xl shadow-amber-950/30 text-amber-100 animate-in fade-in duration-300">
+    <div className="mb-3 rounded-2xl border-2 border-[#C66B49] faraday-glass-panel bg-gradient-to-r from-[#C66B49]/20 via-[#EEE8DB]/75 to-[#C66B49]/20 p-3.5 shadow-lg text-[#222629] animate-in fade-in duration-300">
       {/* Encabezado del Aviso */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0 animate-pulse">
+          <div className="w-10 h-10 rounded-xl bg-[#C66B49]/20 border border-[#C66B49]/55 flex items-center justify-center text-[#B85A3A] shrink-0 animate-pulse">
             <AlertTriangle className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase font-mono tracking-wider">
+              <span className="px-2 py-0.5 rounded-full bg-[#B85A3A] text-white faraday-keep-white text-[10px] font-black uppercase font-mono tracking-wider">
                 Próxima Fecha de Corte
               </span>
-              <span className="text-xs font-bold text-amber-300 font-mono">
+              <span className="text-xs font-extrabold text-[#222629] font-mono">
                 {checkResult.diasRestantes === 0
                   ? "¡VENCE HOY!"
                   : checkResult.diasRestantes === 1
@@ -69,7 +69,7 @@ export const ExpirationWarningBanner: React.FC<ExpirationWarningBannerProps> = (
                   : `Quedan ${checkResult.diasRestantes} días de servicio`}
               </span>
             </div>
-            <p className="text-xs text-slate-200 mt-0.5">
+            <p className="text-xs text-[#222629] mt-0.5">
               Su mensualidad de <strong>${cuotaUsd} USD</strong> (≈ Bs. {cuotaVes.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) vence el <strong>{license.fecha_vencimiento_actual}</strong>. Realice su Pago Móvil para evitar la suspensión automática.
             </p>
           </div>

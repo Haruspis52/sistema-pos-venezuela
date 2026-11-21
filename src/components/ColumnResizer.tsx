@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { SlidersHorizontal, RotateCcw, GripVertical, Maximize2, Minimize2, Check } from "lucide-react";
 
 export interface ColumnDef {
@@ -135,27 +135,31 @@ export function useResizableColumns(tableId: string, columns: ColumnDef[]) {
     [widths, columns, setColumnWidth]
   );
 
-  const dynamicCss = columns
-    .map((c) => {
-      const w = widths[c.key] ?? c.defaultWidth;
-      return `
-        table[data-resizable-table="${tableId}"] th[data-col="${c.key}"],
-        table[data-resizable-table="${tableId}"] td[data-col="${c.key}"] {
-          width: ${w}px;
-          min-width: ${w}px;
-          max-width: ${w}px;
-          ${wrapText ? "white-space: normal !important; word-break: break-word;" : ""}
-        }
-      `;
-    })
-    .join("\n");
+  const styleBlock = useMemo(() => {
+    const dynamicCss = columns
+      .map((c) => {
+        const w = widths[c.key] ?? c.defaultWidth;
+        return `
+          table[data-resizable-table="${tableId}"] th[data-col="${c.key}"],
+          table[data-resizable-table="${tableId}"] td[data-col="${c.key}"] {
+            width: ${w}px;
+            min-width: ${w}px;
+            max-width: ${w}px;
+            ${wrapText ? "white-space: normal !important; word-break: break-word;" : ""}
+          }
+        `;
+      })
+      .join("\n");
 
-  const densityRule =
-    density === "compact"
-      ? `table[data-resizable-table="${tableId}"] td { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }`
-      : density === "spacious"
-      ? `table[data-resizable-table="${tableId}"] td { padding-top: 0.9rem !important; padding-bottom: 0.9rem !important; }`
-      : "";
+    const densityRule =
+      density === "compact"
+        ? `table[data-resizable-table="${tableId}"] td { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }`
+        : density === "spacious"
+        ? `table[data-resizable-table="${tableId}"] td { padding-top: 0.9rem !important; padding-bottom: 0.9rem !important; }`
+        : "";
+
+    return `${dynamicCss}\n${densityRule}`;
+  }, [columns, widths, tableId, wrapText, density]);
 
   return {
     tableId,
@@ -170,7 +174,7 @@ export function useResizableColumns(tableId: string, columns: ColumnDef[]) {
     applyPreset,
     resetColumns,
     startResize,
-    styleBlock: `${dynamicCss}\n${densityRule}`,
+    styleBlock,
   };
 }
 

@@ -185,14 +185,14 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-[#11141a]/95 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 min-h-16 py-2 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 lg:gap-3">
+    <header className="sticky top-0 z-40 w-full border-b border-white/60 faraday-glass-bar">
+      <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 min-h-14 py-1.5 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 lg:gap-3">
         {/* =================================================================== */}
         {/* ZONA 1 (IZQUIERDA): Marca, Edición y Estado de Conectividad */}
         {/* =================================================================== */}
         <div className="flex items-center gap-2.5 shrink-0 min-w-0">
           {/* Logo del Sistema */}
-          <div className="w-10 h-10 rounded-xl overflow-hidden border border-blue-400/30 bg-[#161a24] p-0.5 shadow-sm shadow-blue-950/40 shrink-0">
+          <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/70 bg-white/60 p-0.5 shadow-sm shrink-0">
             <img
               src="/src/assets/images/faraday_pos_dark_icon_1794172646016.jpg"
               alt="Logo de FaradayPOS"
@@ -204,10 +204,10 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Nombre y Selector de Edición Directo */}
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5 flex-nowrap">
-              <span className="font-extrabold text-sm sm:text-base text-white tracking-tight whitespace-nowrap">
+              <span className="font-extrabold text-sm sm:text-base text-[#222629] tracking-tight whitespace-nowrap">
                 FaradayPOS
               </span>
-              <span className="text-slate-600 hidden sm:inline" aria-hidden="true">·</span>
+              <span className="text-[#5C646D]/60 hidden sm:inline" aria-hidden="true">·</span>
 
               {/* Botón interactivo de cambio de Edición */}
               {onOpenEditionSelector && (
@@ -216,46 +216,46 @@ export const Header: React.FC<HeaderProps> = ({
                   id="btn-switch-edition"
                   onClick={onOpenEditionSelector}
                   title="Cambiar edición del sistema: Bodega o Fiscal SENIAT"
-                  className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md transition-colors border border-transparent hover:border-slate-700 hover:bg-slate-800/60 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400 whitespace-nowrap shrink-0"
+                  className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md transition-colors border border-transparent hover:border-white/70 hover:bg-white/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#C66B49] whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   {currentEdition === "bodega" ? (
                     <>
-                      <Store className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span className="text-amber-300">Bodega & Abasto</span>
+                      <Store className="w-3.5 h-3.5 text-[#B85A3A] shrink-0" />
+                      <span className="text-[#222629]">Bodega & Abasto</span>
                     </>
                   ) : (
                     <>
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span className="text-emerald-300">Fiscal SENIAT</span>
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#248F78] shrink-0" />
+                      <span className="text-[#248F78]">Fiscal SENIAT</span>
                     </>
                   )}
-                  <ChevronDown className="w-3 h-3 text-slate-500 ml-0.5 shrink-0" />
+                  <ChevronDown className="w-3 h-3 text-[#5C646D] ml-0.5 shrink-0" />
                 </button>
               )}
             </div>
 
             {/* Subtítulo de estado limpio y unboxed */}
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 whitespace-nowrap">
+            <div className="flex items-center gap-1.5 text-[11px] text-[#5C646D] whitespace-nowrap">
               <button
                 type="button"
                 onClick={() => setIsOfflineMode(!isOfflineMode)}
-                className="flex items-center gap-1 hover:text-slate-200 transition-colors cursor-pointer group"
+                className="flex items-center gap-1 hover:text-[#222629] transition-colors cursor-pointer group"
                 title="Clic para alternar entre modo en línea y modo local autónomo"
               >
                 <span
                   className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
                     isOfflineMode
-                      ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]"
-                      : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] animate-pulse"
+                      ? "bg-[#C66B49] shadow-[0_0_6px_rgba(198,107,73,0.6)]"
+                      : "bg-[#248F78] shadow-[0_0_6px_rgba(36,143,120,0.6)] animate-pulse"
                   }`}
                   aria-hidden="true"
                 />
-                <span className="text-[10px] font-medium text-slate-400 group-hover:text-slate-200">
+                <span className="text-[10px] font-semibold text-[#5C646D] group-hover:text-[#222629]">
                   {isOfflineMode ? "Modo Local (Offline)" : "Servidor Local Activo"}
                 </span>
               </button>
-              <span className="text-slate-700 hidden lg:inline" aria-hidden="true">/</span>
-              <span className="text-[10px] text-slate-500 font-mono hidden lg:inline">
+              <span className="text-[#5C646D]/50 hidden lg:inline" aria-hidden="true">/</span>
+              <span className="text-[10px] text-[#5C646D] font-mono hidden lg:inline">
                 Puerto :3000
               </span>
             </div>
@@ -267,20 +267,20 @@ export const Header: React.FC<HeaderProps> = ({
         {/* =================================================================== */}
         <div className="flex items-center shrink-0">
           <div
-            className="flex items-center gap-2 bg-[#161a22] border border-amber-500/25 px-2.5 sm:px-3 py-1 rounded-xl shadow-inner shadow-black/40 whitespace-nowrap"
+            className="flex items-center gap-2 bg-white/55 backdrop-blur-md border border-white/70 px-2.5 sm:px-3 py-1 rounded-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.85)] whitespace-nowrap"
             title={bcvFechaValor ? `Tasa Oficial BCV (${bcvFechaValor})` : "Tasa Oficial BCV"}
           >
             <div className="flex items-center gap-1.5">
-              <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
-                <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+              <div className="w-6 h-6 rounded-lg bg-[#C66B49]/18 border border-[#C66B49]/45 flex items-center justify-center shrink-0">
+                <DollarSign className="w-3.5 h-3.5 text-[#B85A3A]" />
               </div>
               <div className="flex flex-col justify-center">
                 <div className="flex items-center gap-1.5 leading-tight">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#5C646D] whitespace-nowrap">
                     Tasa BCV
                   </span>
                   {bcvFechaValor && (
-                    <span className="text-[9px] text-amber-400/80 font-mono hidden xl:inline truncate max-w-[140px]">
+                    <span className="text-[9px] text-[#5C646D] font-mono hidden xl:inline truncate max-w-[140px]">
                       ({bcvFechaValor})
                     </span>
                   )}
@@ -296,7 +296,7 @@ export const Header: React.FC<HeaderProps> = ({
                       min="0.01"
                       value={tempBcvRate}
                       onChange={(e) => setTempBcvRate(e.target.value)}
-                      className="w-20 bg-slate-900 border border-amber-500 text-white text-xs font-mono tabular-nums px-1.5 py-0.5 rounded focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      className="w-20 bg-white/80 border border-[#C66B49] text-[#222629] text-xs font-mono tabular-nums px-1.5 py-0.5 rounded focus:outline-none focus:ring-1 focus:ring-[#C66B49]"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleSaveBcv();
                         if (e.key === "Escape") setIsEditingBcv(false);
@@ -305,7 +305,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       id="btn-save-bcv"
                       onClick={handleSaveBcv}
-                      className="p-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded transition-colors cursor-pointer"
+                      className="p-1 bg-[#248F78] hover:bg-[#1e7865] text-white faraday-keep-white rounded transition-colors cursor-pointer"
                       title="Guardar Tasa Manual"
                     >
                       <Check className="w-3 h-3" />
@@ -313,11 +313,11 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 ) : (
                   <div className="flex items-baseline gap-1.5 whitespace-nowrap leading-tight mt-0.5">
-                    <span className="font-mono tabular-nums font-bold text-amber-300 text-xs sm:text-sm leading-none whitespace-nowrap">
+                    <span className="font-mono tabular-nums font-extrabold text-[#222629] text-xs sm:text-sm leading-none whitespace-nowrap">
                       Bs. {bcvRate.toFixed(2)}
                     </span>
                     {bcvEurRate && bcvEurRate > 0 && (
-                      <span className="text-[10px] text-slate-400 font-mono tabular-nums hidden xl:inline whitespace-nowrap">
+                      <span className="text-[10px] text-[#5C646D] font-mono tabular-nums hidden xl:inline whitespace-nowrap">
                         · € {bcvEurRate.toFixed(2)}
                       </span>
                     )}
@@ -328,24 +328,24 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Acciones del BCV: Sincronizar y Editar */}
             {!isEditingBcv && (
-              <div className="flex items-center gap-0.5 ml-1 border-l border-slate-800 pl-1.5 shrink-0">
+              <div className="flex items-center gap-0.5 ml-1 border-l border-[#222629]/15 pl-1.5 shrink-0">
                 {onRefreshBcv && (
                   <button
                     id="btn-sync-bcv"
                     onClick={onRefreshBcv}
                     disabled={isLoadingBcv}
-                    className="p-1 text-slate-400 hover:text-amber-300 disabled:opacity-50 rounded transition-colors cursor-pointer"
+                    className="p-1 text-[#5C646D] hover:text-[#248F78] disabled:opacity-50 rounded transition-colors cursor-pointer"
                     title="Actualizar tasa oficial en tiempo real con DolarApi / BCV"
                   >
                     <RefreshCw
-                      className={`w-3.5 h-3.5 ${isLoadingBcv ? "animate-spin text-amber-400" : ""}`}
+                      className={`w-3.5 h-3.5 ${isLoadingBcv ? "animate-spin text-[#248F78]" : ""}`}
                     />
                   </button>
                 )}
                 <button
                   id="btn-edit-bcv"
                   onClick={() => setIsEditingBcv(true)}
-                  className="p-1 text-slate-400 hover:text-amber-300 rounded transition-colors cursor-pointer"
+                  className="p-1 text-[#5C646D] hover:text-[#B85A3A] rounded transition-colors cursor-pointer"
                   title="Editar tasa manualmente"
                 >
                   <Edit2 className="w-3 h-3" />
@@ -365,45 +365,45 @@ export const Header: React.FC<HeaderProps> = ({
               id="btn-pos-mode"
               onClick={onOpenPosModeSelector}
               title="Cambiar Modo Operativo: Conectar terminal SmartPOS o Totalizar en Pantalla"
-              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap shrink-0 ${
+              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                 posMode === "inventory_only"
-                  ? "bg-[#181a20] text-slate-300 border-slate-700 hover:border-amber-500/50 hover:text-amber-300"
-                  : "bg-blue-950/40 text-blue-300 border-blue-500/40 hover:bg-blue-900/50"
+                  ? "bg-white/50 text-[#222629] border-white/60 hover:bg-white/75 hover:border-[#C66B49]/60"
+                  : "bg-[#7B61C9]/15 text-[#7B61C9] border-[#7B61C9]/35 hover:bg-[#7B61C9]/25"
               }`}
             >
               {posMode === "inventory_only" ? (
                 <>
-                  <ShoppingCart className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <ShoppingCart className="w-3.5 h-3.5 text-[#B85A3A] shrink-0" />
                   <span className="font-mono">Solo Inventario</span>
                 </>
               ) : (
                 <>
-                  <Smartphone className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <Smartphone className="w-3.5 h-3.5 text-[#7B61C9] shrink-0" />
                   <span className="font-mono">SmartPOS</span>
                 </>
               )}
-              <SlidersHorizontal className="w-3 h-3 text-slate-500 ml-0.5 shrink-0" />
+              <SlidersHorizontal className="w-3 h-3 text-[#5C646D] ml-0.5 shrink-0" />
             </button>
           )}
 
-          {/* Usuario / Cajero Activo */}
+          {/* Usuario / Cajero Activo (Insignia ADMIN en Violeta Medio #7B61C9) */}
           {onOpenUserManagement && (
             <button
               id="btn-user-management"
               onClick={onOpenUserManagement}
               title={`Usuario Activo: ${currentUser?.nombre_completo || 'Usuario'} (${currentUser?.rol || 'CAJERO'}). Clic para cambiar cajero.`}
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-800 bg-[#161922] hover:bg-slate-800/60 text-slate-300 hover:text-white transition-all cursor-pointer whitespace-nowrap shrink-0"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-white/60 bg-white/50 hover:bg-white/75 text-[#222629] transition-all cursor-pointer whitespace-nowrap shrink-0"
             >
-              <div className="w-5 h-5 rounded-full bg-indigo-600/30 border border-indigo-400/40 flex items-center justify-center text-[10px] font-bold text-indigo-300 shrink-0">
+              <div className="w-5 h-5 rounded-full bg-[#7B61C9]/20 border border-[#7B61C9]/45 flex items-center justify-center text-[10px] font-extrabold text-[#7B61C9] shrink-0">
                 {(currentUser?.nombre_completo || currentUser?.username || "U")[0].toUpperCase()}
               </div>
-              <span className="font-mono text-xs truncate max-w-[75px]">
+              <span className="font-mono text-xs font-semibold truncate max-w-[75px]">
                 {currentUser?.username || "Cajero"}
               </span>
-              <span className={`text-[9px] px-1 rounded font-mono uppercase font-bold shrink-0 ${
+              <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono uppercase font-bold shrink-0 faraday-keep-white ${
                 currentUser?.rol === "ADMIN"
-                  ? "bg-blue-900/60 text-blue-300 border border-blue-700/50"
-                  : "bg-emerald-900/60 text-emerald-300 border border-emerald-700/50"
+                  ? "bg-[#7B61C9] text-white border border-[#7B61C9]"
+                  : "bg-[#248F78] text-white border border-[#248F78]"
               }`}>
                 {currentUser?.rol || "CAJA"}
               </span>
@@ -417,8 +417,8 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setIsToolsOpen(!isToolsOpen)}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 isToolsOpen
-                  ? "bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/30"
-                  : "bg-[#161a22] text-slate-300 border-slate-700/80 hover:bg-slate-800 hover:text-white"
+                  ? "bg-[#7B61C9] text-white faraday-keep-white border-[#7B61C9] shadow-md shadow-[#7B61C9]/30"
+                  : "bg-white/55 text-[#222629] border-white/65 hover:bg-white/80"
               }`}
               title="Ajustes, respaldos, servidor y utilidades del sistema"
             >
@@ -429,7 +429,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Dropdown Panel */}
             {isToolsOpen && (
-              <div className="absolute right-0 mt-2 w-72 rounded-xl bg-[#141720] border border-slate-800 shadow-2xl shadow-black/80 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-72 rounded-xl faraday-glass-panel border border-white/75 shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 {/* Categoría: Gestión del Negocio */}
                 {!isCashier && (
                   <>
@@ -689,7 +689,7 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={() => setShowShutdownConfirm(true)}
             title="Apagar Sistema y detener el servidor local Node.js"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-rose-500/40 bg-rose-950/30 hover:bg-rose-600 text-rose-300 hover:text-white hover:border-rose-500 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-sm"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-rose-500/35 bg-rose-500/15 hover:bg-rose-600 text-rose-700 hover:text-white hover:border-rose-500 transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-sm"
           >
             <Power className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden xl:inline">Apagar</span>
@@ -699,7 +699,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+            className="md:hidden p-2 rounded-lg text-[#5C646D] hover:text-[#222629] hover:bg-white/60 transition-colors cursor-pointer"
             aria-label="Abrir menú de opciones móviles"
           >
             <Menu className="w-5 h-5" />

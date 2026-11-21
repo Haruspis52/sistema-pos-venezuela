@@ -442,7 +442,7 @@ export const EditionSelectorModal: React.FC<EditionSelectorModalProps> = ({
                 ) : (
                   <>
                     <Lock className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Desbloquear Edición Fiscal ($30/mes)</span>
+                    <span>Desbloquear Edición Fiscal ($25/mes)</span>
                   </>
                 )}
               </button>

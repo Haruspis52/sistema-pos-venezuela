@@ -142,62 +142,71 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-200 select-none overflow-y-auto">
-      <div className="bg-[#12141c] border-2 border-blue-500/40 rounded-3xl w-full max-w-xl shadow-2xl shadow-blue-950/50 overflow-hidden flex flex-col my-auto max-h-[94vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#222629]/28 backdrop-blur-md select-none overflow-y-auto">
+      <div
+        className="border border-white/80 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[94vh] backdrop-blur-xl"
+        style={{
+          background:
+            "linear-gradient(155deg, rgba(252, 249, 244, 0.94) 0%, rgba(238, 232, 219, 0.92) 65%, rgba(232, 226, 246, 0.90) 100%)",
+        }}
+      >
         {/* Header Superior */}
-        <div className="bg-gradient-to-r from-blue-950 via-[#161a26] to-[#12141c] p-5 sm:p-6 border-b border-slate-800 text-center relative shrink-0">
+        <div className="bg-white/45 p-5 sm:p-6 border-b border-white/75 text-center relative shrink-0">
           <div className="flex justify-center mb-3">
-            <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border-2 border-blue-500/40 flex items-center justify-center text-blue-400 shadow-xl shadow-blue-950/50">
-              <Users className="w-7 h-7" />
+            <div className="w-13 h-13 rounded-2xl bg-[#7B61C9]/15 border border-[#7B61C9]/35 flex items-center justify-center text-[#7B61C9] shadow-inner">
+              <Users className="w-6 h-6" />
             </div>
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[#222629] tracking-tight">
             {negocioNombre}
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs font-medium text-[#5C646D] mt-1">
             Seleccione su perfil de usuario e ingrese su PIN de acceso
           </p>
         </div>
 
         {/* Cuerpo Modal */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 min-h-0">
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 min-h-0 bg-transparent">
           {/* FASE 1: SELECCIÓN DE PERFIL DE USUARIO */}
           {!selectedUser ? (
-            <div className="space-y-4">
-              <label className="text-xs font-bold text-slate-300 uppercase font-mono tracking-wider block text-center sm:text-left">
+            <div className="space-y-3.5">
+              <label className="text-[11px] font-bold text-[#5C646D] uppercase font-mono tracking-wider block text-center sm:text-left">
                 Perfiles de Usuario Registrados ({users.length}):
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {users.map((user) => (
-                  <div
+                  <button
+                    type="button"
                     key={user.id}
                     onClick={() => handleSelectProfile(user)}
-                    className="group bg-[#171a26] hover:bg-[#1f2334] border border-slate-800 hover:border-blue-500/60 p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-3.5 shadow-lg active:scale-[0.98]"
+                    className="faraday-glass-card rounded-xl p-3.5 flex items-center gap-3.5 text-left transition-all cursor-pointer group"
                   >
                     <div
-                      className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${
-                        user.avatar_color || "from-blue-600 to-indigo-600"
-                      } flex items-center justify-center text-white font-extrabold text-lg shadow-md shrink-0 group-hover:scale-105 transition-transform`}
+                      className={`w-11 h-11 rounded-xl border ${
+                        user.rol === "ADMIN"
+                          ? "bg-[#7B61C9] text-white faraday-keep-white border-white/60"
+                          : user.rol === "SUPERVISOR"
+                          ? "bg-[#248F78] text-white faraday-keep-white border-white/60"
+                          : "bg-[#B85A3A] text-white faraday-keep-white border-white/70"
+                      } flex items-center justify-center font-extrabold text-base shrink-0 shadow-sm`}
                     >
                       {user.nombre_completo.charAt(0)}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="text-xs sm:text-sm font-bold text-white truncate">
-                          {user.nombre_completo}
-                        </h4>
-                      </div>
+                      <h4 className="text-xs sm:text-sm font-bold text-[#222629] group-hover:text-[#7B61C9] truncate transition-colors">
+                        {user.nombre_completo}
+                      </h4>
 
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <span
-                          className={`text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-md border ${
+                          className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-md border ${
                             user.rol === "ADMIN"
-                              ? "bg-blue-950/80 text-blue-300 border-blue-700/60"
+                              ? "bg-[#7B61C9]/15 text-[#7B61C9] border-[#7B61C9]/35"
                               : user.rol === "SUPERVISOR"
-                              ? "bg-emerald-950/80 text-emerald-300 border-emerald-700/60"
-                              : "bg-amber-950/80 text-amber-300 border-amber-700/60"
+                              ? "bg-[#248F78]/15 text-[#248F78] border-[#248F78]/35"
+                              : "bg-[#C66B49]/18 text-[#9B4628] border-[#C66B49]/45"
                           }`}
                         >
                           {user.rol === "ADMIN"
@@ -206,12 +215,12 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                             ? "SUPERVISOR"
                             : "CAJERO DE TURNO"}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-mono">
+                        <span className="text-[11px] text-[#5C646D] font-mono">
                           @{user.username}
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -222,24 +231,28 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                 e.preventDefault();
                 handleAttemptLogin();
               }}
-              className="space-y-4 animate-in fade-in duration-200"
+              className="space-y-4"
             >
               {/* Card del perfil seleccionado + Botón Cambiar */}
-              <div className="bg-[#171a26] border border-blue-500/50 p-3.5 rounded-2xl flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
+              <div className="bg-white/65 border border-white/80 p-3.5 rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${
-                      selectedUser.avatar_color || "from-blue-600 to-indigo-600"
-                    } flex items-center justify-center text-white font-extrabold text-base shadow`}
+                    className={`w-10 h-10 rounded-xl border shrink-0 ${
+                      selectedUser.rol === "ADMIN"
+                        ? "bg-[#7B61C9] text-white faraday-keep-white border-white/60"
+                        : selectedUser.rol === "SUPERVISOR"
+                        ? "bg-[#248F78] text-white faraday-keep-white border-white/60"
+                        : "bg-[#B85A3A] text-white faraday-keep-white border-white/70"
+                    } flex items-center justify-center font-extrabold text-base`}
                   >
                     {selectedUser.nombre_completo.charAt(0)}
                   </div>
-                  <div>
-                    <div className="text-xs font-bold text-white">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-[#222629] truncate">
                       {selectedUser.nombre_completo}
                     </div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      Rol: <strong>{selectedUser.rol}</strong> (@{selectedUser.username})
+                    <div className="text-[10.5px] text-[#5C646D] font-mono truncate">
+                      Rol: <strong className="text-[#9B4628]">{selectedUser.rol}</strong> (@{selectedUser.username})
                     </div>
                   </div>
                 </div>
@@ -247,7 +260,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedUser(null)}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="bg-white/80 hover:bg-white border border-white/85 text-[#222629] rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer shadow-xs"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Cambiar Perfil</span>
@@ -256,7 +269,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
 
               {/* Mensaje de Error si el PIN es incorrecto */}
               {errorMsg && (
-                <div className="bg-rose-950/80 border border-rose-500 p-3 rounded-xl text-xs text-rose-200 flex items-center gap-2 animate-in shake duration-200 font-mono">
+                <div className="bg-rose-950/60 border border-rose-500/40 p-3 rounded-xl text-xs text-rose-300 font-semibold flex items-center gap-2 font-mono">
                   <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
@@ -264,8 +277,9 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
 
               {/* Display de PIN */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 block text-center font-mono">
-                  Ingrese PIN de Seguridad para {selectedUser.nombre_completo}:
+                <label className="text-xs font-semibold text-slate-300 block text-center">
+                  Ingrese PIN de Seguridad para{" "}
+                  <span className="text-amber-300 font-bold">{selectedUser.nombre_completo}</span>:
                 </label>
 
                 <div className="relative max-w-xs mx-auto">
@@ -289,12 +303,12 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                     autoFocus
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    className="w-full bg-[#0b0d13] border-2 border-blue-500/60 focus:border-blue-400 rounded-2xl py-3 px-4 text-center text-2xl font-mono font-black text-amber-300 tracking-[0.4em] focus:outline-none shadow-inner cursor-text"
+                    className="w-full bg-white/70 border border-white/80 focus:border-[#C66B49] rounded-xl py-3 px-4 text-center text-2xl font-mono font-extrabold text-[#222629] tracking-[0.4em] focus:outline-none transition-colors shadow-inner"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPin(!showPin)}
-                    className="absolute right-3 top-3.5 text-slate-400 hover:text-white cursor-pointer"
+                    className="absolute right-3 top-3.5 text-[#5C646D] hover:text-[#222629] cursor-pointer transition-colors"
                     title={showPin ? "Ocultar PIN" : "Mostrar PIN"}
                   >
                     {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -310,7 +324,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                       key={num}
                       type="button"
                       onClick={() => handleNumpadClick(num)}
-                      className="py-3 bg-[#191c28] hover:bg-blue-600 active:bg-blue-700 text-white font-extrabold text-lg rounded-xl transition-all shadow border border-slate-800 hover:border-blue-400 cursor-pointer"
+                      className="bg-white/60 hover:bg-[#7B61C9] border border-white/75 hover:border-[#7B61C9] rounded-xl py-3 text-[#222629] hover:text-white font-mono font-extrabold text-lg transition-all cursor-pointer active:scale-95"
                     >
                       {num}
                     </button>
@@ -318,21 +332,21 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                   <button
                     type="button"
                     onClick={handleClearPin}
-                    className="py-3 bg-slate-900 hover:bg-slate-800 text-slate-400 font-bold text-xs rounded-xl border border-slate-800 transition-all cursor-pointer"
+                    className="bg-white/45 hover:bg-white/80 border border-white/65 rounded-xl py-3 text-xs font-bold text-[#5C646D] hover:text-[#222629] transition-colors cursor-pointer"
                   >
                     Borrar
                   </button>
                   <button
                     type="button"
                     onClick={() => handleNumpadClick("0")}
-                    className="py-3 bg-[#191c28] hover:bg-blue-600 active:bg-blue-700 text-white font-extrabold text-lg rounded-xl transition-all shadow border border-slate-800 hover:border-blue-400 cursor-pointer"
+                    className="bg-white/60 hover:bg-[#7B61C9] border border-white/75 hover:border-[#7B61C9] rounded-xl py-3 text-[#222629] hover:text-white font-mono font-extrabold text-lg transition-all cursor-pointer active:scale-95"
                   >
                     0
                   </button>
                   <button
                     type="button"
                     onClick={handleBackspace}
-                    className="py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs rounded-xl border border-slate-800 transition-all flex items-center justify-center cursor-pointer"
+                    className="bg-white/45 hover:bg-white/80 border border-white/65 rounded-xl py-3 text-xs text-[#5C646D] hover:text-[#222629] flex items-center justify-center transition-colors cursor-pointer"
                     title="Retroceder"
                   >
                     <Delete className="w-4 h-4" />
@@ -343,7 +357,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                 <button
                   type="submit"
                   disabled={!pin}
-                  className="w-full py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-blue-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed mt-2"
+                  className="w-full py-3 rounded-xl bg-[#B85A3A] hover:bg-[#A14B2E] text-white faraday-keep-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#B85A3A]/30 border border-white/60 transition-all disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer mt-2"
                 >
                   <LogIn className="w-4 h-4" />
                   <span>Iniciar Sesión como {selectedUser.nombre_completo.split(" ")[0]}</span>
@@ -359,7 +373,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                         setErrorMsg(null);
                         setMasterCodeInput("");
                       }}
-                      className="text-xs text-amber-400 hover:text-amber-300 font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="text-xs text-amber-400 hover:text-amber-300 font-semibold inline-flex items-center gap-1.5 underline cursor-pointer"
                     >
                       <KeyRound className="w-3.5 h-3.5" />
                       <span>¿Olvidó el PIN? Entrar con Código Maestro</span>
@@ -370,7 +384,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
 
               {/* Formulario Emergente de Código Maestro */}
               {showMasterCodeModal && selectedUser.rol === "ADMIN" && (
-                <div className="bg-[#181c28] border-2 border-amber-500/50 rounded-2xl p-4 text-xs space-y-3 animate-in fade-in duration-200 shadow-xl shadow-amber-950/40">
+                <div className="bg-amber-950/30 border border-amber-500/30 rounded-xl p-4 text-xs space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 font-bold text-amber-300">
                       <ShieldCheck className="w-4 h-4 text-amber-400" />
@@ -383,7 +397,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                         setMasterCodeInput("");
                         setErrorMsg(null);
                       }}
-                      className="text-slate-400 hover:text-white p-1"
+                      className="text-slate-400 hover:text-white font-bold p-1 cursor-pointer"
                     >
                       ✕
                     </button>
@@ -407,19 +421,19 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
                           handleAttemptMasterCodeLogin();
                         }
                       }}
-                      placeholder=""
+                      placeholder="Código maestro..."
                       autoFocus
                       autoComplete="off"
-                      className="w-full bg-[#0d0f17] border border-amber-500/60 rounded-xl px-3 py-2.5 text-sm text-center font-mono font-bold tracking-widest text-amber-300 placeholder:text-slate-600 focus:outline-none focus:border-amber-400"
+                      className="w-full bg-[#0e1017] border border-slate-700 focus:border-amber-500 rounded-xl px-3 py-2.5 text-sm text-white text-center font-mono font-bold tracking-widest focus:outline-none"
                     />
 
                     <button
                       type="button"
                       onClick={handleAttemptMasterCodeLogin}
                       disabled={!masterCodeInput.trim()}
-                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-amber-950/50 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                     >
-                      <KeyRound className="w-4 h-4 text-slate-950" />
+                      <KeyRound className="w-4 h-4" />
                       <span>Validar Código Maestro e Iniciar Sesión</span>
                     </button>
                   </div>
@@ -430,7 +444,7 @@ export const UserProfileLoginModal: React.FC<UserProfileLoginModalProps> = ({
         </div>
 
         {/* Footer info */}
-        <div className="bg-[#0c0e14] px-6 py-3 border-t border-slate-800 text-center text-[11px] text-slate-500 font-mono shrink-0">
+        <div className="bg-white/45 px-6 py-3 border-t border-white/75 text-center text-[11px] font-medium text-[#5C646D] font-mono shrink-0">
           FaradayPOS • Inventario &amp; Facturación Venezuela • Sesión Protegida por PIN
         </div>
       </div>
