@@ -81,6 +81,8 @@ import { InitialSetupModal } from "./components/InitialSetupModal";
 import { LicenseLockScreen } from "./components/LicenseLockScreen";
 import { ExpirationWarningBanner } from "./components/ExpirationWarningBanner";
 import { UserProfileLoginModal } from "./components/UserProfileLoginModal";
+import { CommandPaletteModal, MainTabTarget, BodegaSubTabTarget } from "./components/CommandPaletteModal";
+import { isSoundEnabled, setSoundEnabled, playScanBeep } from "./utils/soundEffects";
 
 const UserManagementModal = React.lazy(() =>
   import("./components/UserManagementModal").then((m) => ({ default: m.UserManagementModal }))
@@ -147,6 +149,86 @@ export function App() {
   const [activeBodegaTab, setActiveBodegaTab] = useState<
     "mostrador" | "fiados" | "caja" | "etiquetas"
   >("mostrador");
+
+  // Feedback Auditivo (Sonidos Sutiles de Confirmación)
+  const [soundEnabledState, setSoundEnabledState] = useState<boolean>(() =>
+    isSoundEnabled()
+  );
+
+  // Paleta de Comandos Rápidos (Ctrl + K o F2)
+  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
+  const [bodegaCommandTrigger, setBodegaCommandTrigger] = useState<{
+    id: number;
+    openAvanceModal?: boolean;
+    productToSelect?: Producto;
+    vecinoSearch?: string;
+  } | null>(null);
+
+  const handleToggleSound = () => {
+    setSoundEnabledState((prev) => {
+      const next = !prev;
+      setSoundEnabled(next);
+      if (next) {
+        playScanBeep();
+      }
+      showToast(
+        next
+          ? "🔊 Sonidos de confirmación activados"
+          : "🔇 Sonidos del mostrador silenciados"
+      );
+      return next;
+    });
+  };
+
+  // Atajo global Ctrl + K o F2 para abrir la Paleta de Comandos Rápidos desde cualquier pestaña
+  useEffect(() => {
+    const handleGlobalCommandPaletteShortcut = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalCommandPaletteShortcut);
+    return () =>
+      window.removeEventListener("keydown", handleGlobalCommandPaletteShortcut);
+  }, []);
+
+  const handleNavigateFromCommandPalette = (
+    mainTab: MainTabTarget,
+    bodegaSubTab?: BodegaSubTabTarget,
+    extraPayload?: {
+      openRateEditor?: boolean;
+      openAvanceModal?: boolean;
+      productToSelect?: Producto;
+      vecinoSearch?: string;
+    }
+  ) => {
+    setActiveCtkTab(mainTab);
+    if (bodegaSubTab) {
+      setActiveBodegaTab(bodegaSubTab);
+    }
+    if (extraPayload?.openRateEditor) {
+      const rateBtn = document.getElementById("bcv-rate-widget");
+      if (rateBtn) {
+        rateBtn.click();
+      }
+    }
+    if (
+      extraPayload?.openAvanceModal ||
+      extraPayload?.productToSelect ||
+      extraPayload?.vecinoSearch !== undefined
+    ) {
+      setBodegaCommandTrigger({
+        id: Date.now(),
+        openAvanceModal: extraPayload.openAvanceModal,
+        productToSelect: extraPayload.productToSelect,
+        vecinoSearch: extraPayload.vecinoSearch,
+      });
+    }
+  };
 
   // SQLite data state
   const [products, setProducts] = useState<Producto[]>([]);
@@ -1567,6 +1649,9 @@ export function App() {
         onOpenKeyboardShortcuts={() => setShowKeyboardShortcutsModal(true)}
         onOpenLogsModal={() => setShowLogsModal(true)}
         onOpenUpdateModal={() => setShowUpdateModal(true)}
+        soundEnabled={soundEnabledState}
+        onToggleSound={handleToggleSound}
+        onOpenCommandPalette={() => setShowCommandPalette(true)}
       />
 
       {/* Main Content Area */}
@@ -1794,6 +1879,7 @@ export function App() {
                       onOpenInvoiceAi={() => setActiveCtkTab("invoice_ai")}
                       activeTab={activeBodegaTab}
                       onTabChange={setActiveBodegaTab}
+                      externalCommandTrigger={bodegaCommandTrigger}
                     />
                   )}
 
@@ -1898,6 +1984,17 @@ export function App() {
           </div>
         </div>
       </footer>
+
+      {/* Paleta de Comandos Rápidos (Ctrl + K o F2) */}
+      <CommandPaletteModal
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        products={products}
+        bcvRate={bcvRate}
+        soundEnabled={soundEnabledState}
+        onToggleSound={handleToggleSound}
+        onNavigateCommand={handleNavigateFromCommandPalette}
+      />
 
       {/* Selector de Edición / Asistente Inicial */}
       <EditionSelectorModal

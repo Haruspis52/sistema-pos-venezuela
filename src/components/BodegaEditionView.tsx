@@ -53,8 +53,15 @@ import {
   KeyRound,
   ShieldCheck,
   Lock,
-  MessageCircle,
+  EyeOff,
+  PauseCircle,
+  PlayCircle,
 } from "lucide-react";
+import {
+  playScanBeep,
+  playErrorBeep,
+  playCashRegisterSound,
+} from "../utils/soundEffects";
 import {
   getStoredFiados,
   saveFiados,
@@ -66,6 +73,13 @@ import {
   authenticateUserByPin,
   getStoredNegocioConfig,
 } from "../mockDb";
+
+export interface PausedCartAccount {
+  id: string;
+  label: string;
+  items: CartItem[];
+  timestamp: string;
+}
 
 interface BodegaEditionViewProps {
   products: Producto[];
@@ -82,6 +96,12 @@ interface BodegaEditionViewProps {
   onOpenInvoiceAi?: () => void;
   activeTab?: "mostrador" | "fiados" | "caja" | "etiquetas";
   onTabChange?: (tab: "mostrador" | "fiados" | "caja" | "etiquetas") => void;
+  externalCommandTrigger?: {
+    id: number;
+    openAvanceModal?: boolean;
+    productToSelect?: Producto;
+    vecinoSearch?: string;
+  } | null;
 }
 
 export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
@@ -99,6 +119,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
   onOpenInvoiceAi,
   activeTab,
   onTabChange,
+  externalCommandTrigger,
 }) => {
   // Subtabs within Bodega edition (controlled by parent unified tab bar when activeTab is passed)
   const [internalBodegaTab, setInternalBodegaTab] = useState<
@@ -109,6 +130,41 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
 
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [pausedCarts, setPausedCarts] = useState<PausedCartAccount[]>(() => {
+    try {
+      const saved = localStorage.getItem("bodega_paused_carts");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [editingCartProductId, setEditingCartProductId] = useState<number | null>(null);
+  const [editingCartQtyValue, setEditingCartQtyValue] = useState<string>("");
+  const [vueltoMixtoUsdDelivered, setVueltoMixtoUsdDelivered] = useState<number | "">(0);
+  const [showLiveSummary, setShowLiveSummary] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("bodega_show_live_summary") !== "false";
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bodega_paused_carts", JSON.stringify(pausedCarts));
+    } catch {}
+  }, [pausedCarts]);
+
+  const handleToggleLiveSummary = () => {
+    setShowLiveSummary((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("bodega_show_live_summary", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const [searchProduct, setSearchProduct] = useState("");
   const deferredSearchProduct = useDeferredValue(searchProduct);
   const [selectedCategory, setSelectedCategory] = useState<string>("TODAS");
@@ -435,34 +491,43 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
   useEffect(() => {
     if (isPayModalOpen) {
       setCustomTotalUsd(cartTotalUsd);
+      setVueltoMixtoUsdDelivered(0);
     }
   }, [isPayModalOpen]);
+
+  useEffect(() => {
+    setVueltoMixtoUsdDelivered(0);
+  }, [cashGivenUsd, effectiveTotalUsd]);
 
   // Add to cart
   const handleAddToCart = (product: Producto) => {
     if (product.stock_actual <= 0) {
+      playErrorBeep();
       showToast(`⚠️ Sin stock disponible de "${product.nombre}"`);
       return;
     }
 
     const existing = cart.find((item) => item.producto.id === product.id);
     if (existing && existing.cantidad + 1 > product.stock_actual) {
+      playErrorBeep();
       showToast(`⚠️ No hay más stock disponible (Máx: ${product.stock_actual})`);
       return;
     }
 
+    playScanBeep();
     setCart((prev) => {
       const itemInCart = prev.find((item) => item.producto.id === product.id);
       if (itemInCart) {
-        if (itemInCart.cantidad + 1 > product.stock_actual) {
+        const nextQty = Number((itemInCart.cantidad + 1).toFixed(3));
+        if (nextQty > product.stock_actual) {
           return prev;
         }
         return prev.map((item) =>
           item.producto.id === product.id
             ? {
                 ...item,
-                cantidad: item.cantidad + 1,
-                subtotal: (item.cantidad + 1) * item.precio_unitario,
+                cantidad: nextQty,
+                subtotal: Number((nextQty * item.precio_unitario).toFixed(2)),
               }
             : item
         );
@@ -482,18 +547,44 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
     });
   };
 
+  // Handle commands dispatched from Command Palette (Ctrl+K or F2)
+  useEffect(() => {
+    if (!externalCommandTrigger) return;
+    if (externalCommandTrigger.openAvanceModal) {
+      setIsAvanceModalOpen(true);
+    }
+    if (externalCommandTrigger.productToSelect) {
+      handleAddToCart(externalCommandTrigger.productToSelect);
+      showToast(`🛒 Añadido desde Comandos: ${externalCommandTrigger.productToSelect.nombre}`);
+    }
+    if (externalCommandTrigger.vecinoSearch !== undefined) {
+      setSearchFiado(externalCommandTrigger.vecinoSearch);
+      const match = fiadosList.find(
+        (f) => f.nombre.toLowerCase() === externalCommandTrigger.vecinoSearch?.toLowerCase()
+      );
+      if (match) {
+        setSelectedFiadoDetail(match);
+      }
+    }
+  }, [externalCommandTrigger]);
+
   const handleUpdateCartQuantity = (productId: number, delta: number) => {
     const item = cart.find((i) => i.producto.id === productId);
     if (item && delta > 0 && item.cantidad + delta > item.producto.stock_actual) {
+      playErrorBeep();
       showToast(`⚠️ Límite de stock: ${item.producto.stock_actual}`);
       return;
+    }
+
+    if (delta > 0) {
+      playScanBeep();
     }
 
     setCart((prev) => {
       return prev
         .map((it) => {
           if (it.producto.id === productId) {
-            const newQty = it.cantidad + delta;
+            const newQty = Number((it.cantidad + delta).toFixed(3));
             if (newQty <= 0) return null;
             if (newQty > it.producto.stock_actual) {
               return it;
@@ -501,13 +592,119 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
             return {
               ...it,
               cantidad: newQty,
-              subtotal: newQty * it.precio_unitario,
+              subtotal: Number((newQty * it.precio_unitario).toFixed(2)),
             };
           }
           return it;
         })
         .filter(Boolean) as CartItem[];
     });
+  };
+
+  // Edición Directa de Cantidad en la Canasta y Pesables (Kg / Gramos o Múltiples Unidades)
+  const handleCommitDirectCartQuantity = (productId: number, rawValue: string) => {
+    setEditingCartProductId(null);
+    const cleaned = rawValue.trim().replace(",", ".");
+    if (!cleaned) return;
+    const parsed = parseFloat(cleaned);
+    if (isNaN(parsed) || parsed <= 0) {
+      handleRemoveFromCart(productId);
+      return;
+    }
+
+    const item = cart.find((i) => i.producto.id === productId);
+    if (!item) return;
+
+    let finalQty = Number(parsed.toFixed(3));
+    if (finalQty > item.producto.stock_actual) {
+      playErrorBeep();
+      showToast(`⚠️ Límite de existencia: ajustado a máx. ${item.producto.stock_actual}`);
+      finalQty = item.producto.stock_actual;
+    } else {
+      playScanBeep();
+    }
+
+    setCart((prev) =>
+      prev.map((it) =>
+        it.producto.id === productId
+          ? {
+              ...it,
+              cantidad: finalQty,
+              subtotal: Number((finalQty * it.precio_unitario).toFixed(2)),
+            }
+          : it
+      )
+    );
+  };
+
+  // Cuentas en Espera / "Pausar Carrito" (Multi-Cliente)
+  const handlePauseCurrentCart = () => {
+    if (cart.length === 0) {
+      showToast("ℹ️ Agrega al menos un producto antes de pausar la cuenta.");
+      return;
+    }
+    const existingNums = pausedCarts.map((p) => {
+      const m = p.label.match(/Cliente\s+(\d+)/i);
+      return m ? parseInt(m[1], 10) : 0;
+    });
+    const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
+    const label = `Cliente ${nextNum}`;
+    const newPaused: PausedCartAccount = {
+      id: `pause-${Date.now()}`,
+      label,
+      items: [...cart],
+      timestamp: new Date().toLocaleTimeString("es-VE", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    setPausedCarts((prev) => [...prev, newPaused]);
+    setCart([]);
+    playScanBeep();
+    showToast(`⏸ Venta guardada en espera (${label}). Puedes cobrar al siguiente cliente.`);
+  };
+
+  const handleResumePausedCart = (pausedId: string) => {
+    const target = pausedCarts.find((p) => p.id === pausedId);
+    if (!target) return;
+
+    if (cart.length > 0) {
+      // Intercambiar la cuenta activa con la cuenta en espera para no perder ningún artículo
+      const existingNums = pausedCarts.map((p) => {
+        const m = p.label.match(/Cliente\s+(\d+)/i);
+        return m ? parseInt(m[1], 10) : 0;
+      });
+      const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
+      const swappedCurrent: PausedCartAccount = {
+        id: `pause-${Date.now()}`,
+        label: `Cliente ${nextNum}`,
+        items: [...cart],
+        timestamp: new Date().toLocaleTimeString("es-VE", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+      setPausedCarts((prev) =>
+        prev.map((p) => (p.id === pausedId ? swappedCurrent : p))
+      );
+      setCart(target.items);
+      playScanBeep();
+      showToast(`▶️ Retomada cuenta de ${target.label} (carrito anterior pasó a ${swappedCurrent.label})`);
+    } else {
+      setPausedCarts((prev) => prev.filter((p) => p.id !== pausedId));
+      setCart(target.items);
+      playScanBeep();
+      showToast(`▶️ Retomada cuenta en espera: ${target.label}`);
+    }
+  };
+
+  const handleDiscardPausedCart = (pausedId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const target = pausedCarts.find((p) => p.id === pausedId);
+    setPausedCarts((prev) => prev.filter((p) => p.id !== pausedId));
+    if (target) {
+      showToast(`🗑️ Cuenta en espera (${target.label}) descartada`);
+    }
   };
 
   const handleRemoveFromCart = (productId: number) => {
@@ -539,6 +736,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
       showToast(`📦 Escaneado: ${found.nombre} ($${found.precio_venta.toFixed(2)})`);
     },
     onScanNotFound: (scannedCode) => {
+      playErrorBeep();
       showToast(`⚠️ Producto no encontrado para código: "${scannedCode}"`);
     },
   });
@@ -761,8 +959,9 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
     setAvanceMontoInput("");
     setAvanceRefPunto("");
     setAvanceClienteNombre("");
+    playCashRegisterSound();
     showToast(
-      `💸 Avance procesado: Entregar ${entregaLabel} • Cobrado en Punto Bs. ${avanceCalc.totalPuntoVes.toFixed(2)} (+${avancePorcentaje}% ganancia)`
+      `Avance procesado: Entregar ${entregaLabel} • Cobrado en Punto Bs. ${avanceCalc.totalPuntoVes.toFixed(2)} (+${avancePorcentaje}% ganancia)`
     );
   };
 
@@ -863,6 +1062,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
     setIsPayModalOpen(false);
     setCustomTotalUsd("");
     setShowWizarPosModal(false);
+    playCashRegisterSound();
     showToast(`✅ Cobro SmartPOS APROBADO: Ref #${posResult.referencia}`);
   };
 
@@ -1086,6 +1286,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
     setCashGivenVes("");
     setPagoMovilRef("");
     setPuntoManualRef("");
+    playCashRegisterSound();
     showToast(`✅ Venta registrada con éxito (${ticket.id})`);
   };
 
@@ -1232,34 +1433,6 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
     setIsAbonoJustCompleted(true);
     setAbonoMontoUsd("");
     showToast(`✅ Abono de $${montoUsd.toFixed(2)} registrado correctamente`);
-  };
-
-  // Cobranza Rápida por WhatsApp para Vecinos de la Libreta
-  const handleSendWhatsAppDebtReminder = (vecino: FiadoCliente) => {
-    if (vecino.saldo_deuda_usd <= 0) {
-      showToast(`ℹ️ ${vecino.nombre} se encuentra al día, no mantiene saldo pendiente.`);
-      return;
-    }
-
-    const negocio = getStoredNegocioConfig();
-    const cleanPhone = (vecino.telefono || "").replace(/\D/g, "");
-    const saldoVes = (vecino.saldo_deuda_usd * bcvRate).toFixed(2);
-
-    let phoneParam = cleanPhone;
-    if (phoneParam.startsWith("0")) {
-      phoneParam = "58" + phoneParam.slice(1);
-    } else if (!phoneParam.startsWith("58") && phoneParam.length === 10) {
-      phoneParam = "58" + phoneParam;
-    }
-
-    const nombreNegocio = negocio.nombreComercial || "nuestro comercio";
-    const mensaje = encodeURIComponent(
-      `Hola *${vecino.nombre}*, cordial saludo de *${nombreNegocio}*.\n\nLe recordamos amablemente el saldo de su cuenta en nuestra libreta:\n• Monto pendiente: *$${vecino.saldo_deuda_usd.toFixed(2)} USD*\n• Equivalente a tasa oficial BCV (Bs. ${bcvRate.toFixed(2)}): *Bs. ${saldoVes}*\n\nPuede cancelar en efectivo ($ / Bs.), Pago Móvil o Punto de Venta en nuestro local. ¡Agradecemos su preferencia y confianza!`
-    );
-
-    const waUrl = phoneParam && phoneParam.length >= 10 ? `https://wa.me/${phoneParam}?text=${mensaje}` : `https://wa.me/?text=${mensaje}`;
-    window.open(waUrl, "_blank");
-    showToast(`📲 Abriendo WhatsApp para enviar cobro a ${vecino.nombre}...`);
   };
 
   // Keyboard shortcut: Press Enter to close neighbor detail modal if an abono was just completed
@@ -1561,6 +1734,38 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   <Barcode className="w-3.5 h-3.5 animate-pulse shrink-0 text-[#248F78]" />
                   <span className="hidden 2xl:inline">Lector Activo</span>
                 </div>
+
+                {/* Mini-Barra de Resumen en Vivo en el Mostrador (Con ojo para ocultar frente a clientes) */}
+                <div
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/60 border border-white/75 text-[#222629] text-[11px] font-mono font-bold whitespace-nowrap shrink-0 shadow-xs"
+                  title="Resumen en vivo del turno actual en Mostrador"
+                >
+                  <span className="text-[#5C646D] font-sans font-semibold">Ventas hoy:</span>
+                  <span className="text-[#248F78] font-extrabold">
+                    {showLiveSummary ? shiftExpectedTotals.ventasCount : "••"}
+                  </span>
+                  <span className="text-[#5C646D]">•</span>
+                  <span className="text-[#5C646D] font-sans font-semibold">Caja:</span>
+                  <span className="text-[#9A6310] font-extrabold">
+                    {showLiveSummary ? `$${shiftExpectedTotals.totalUsd.toFixed(2)}` : "$••••"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleToggleLiveSummary}
+                    className="p-0.5 rounded hover:bg-black/10 text-[#5C646D] hover:text-[#222629] transition-colors cursor-pointer"
+                    title={
+                      showLiveSummary
+                        ? "Ocultar montos de caja si hay clientes mirando la pantalla"
+                        : "Mostrar resumen de ventas y caja del día"
+                    }
+                  >
+                    {showLiveSummary ? (
+                      <Eye className="w-3.5 h-3.5" />
+                    ) : (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1655,6 +1860,10 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   {mostradorPagination.paginatedItems.map((p, idx) => {
                     const priceVes = p.precio_venta * bcvRate;
                     const inCart = cart.find((c) => c.producto.id === p.id);
+                    const minStock = p.stock_minimo || 5;
+                    const isOutOfStock = p.stock_actual <= 0;
+                    const isLowStock = !isOutOfStock && p.stock_actual <= minStock;
+
                     return (
                       <button
                         key={`bodega-p-${p.id}-${p.codigo_barras || ""}-${idx}`}
@@ -1663,6 +1872,10 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                           inCart
                             ? "faraday-glass-card-active"
                             : "faraday-glass-card"
+                        } ${
+                          isOutOfStock
+                            ? "opacity-70 !border-dashed !border-[#B42E46]/45"
+                            : ""
                         }`}
                       >
                         <div className="flex items-start justify-between gap-1.5">
@@ -1672,6 +1885,10 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                           {inCart ? (
                             <span className="px-2 py-0.5 rounded-full bg-[#7B61C9] text-white faraday-keep-white text-[10px] font-mono font-bold shadow-sm shrink-0">
                               x{inCart.cantidad}
+                            </span>
+                          ) : isOutOfStock ? (
+                            <span className="px-1.5 py-0.5 rounded-md bg-[#B42E46]/15 border border-[#B42E46]/35 text-[#B42E46] text-[9px] font-mono font-extrabold shrink-0">
+                              Sin Stock
                             </span>
                           ) : (
                             <span className="w-5 h-5 rounded-full bg-[#7B61C9]/15 border border-[#7B61C9]/30 text-[#7B61C9] flex items-center justify-center shrink-0 group-hover:bg-[#7B61C9] group-hover:text-white transition-colors">
@@ -1683,7 +1900,7 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                           {p.nombre}
                         </div>
 
-                        <div className="mt-2.5 pt-1.5 border-t border-white/60 flex items-end justify-between">
+                        <div className="mt-2.5 pt-1.5 border-t border-white/60 flex items-end justify-between gap-1">
                           <div>
                             <div className="text-sm font-extrabold text-[#9A6310] font-mono">
                               ${p.precio_venta.toFixed(2)}
@@ -1692,8 +1909,40 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                               Bs. {priceVes.toFixed(2)}
                             </div>
                           </div>
-                          <span className="text-[9px] text-[#5C646D] font-mono font-semibold">
-                            Stock: {p.stock_actual}
+
+                          {/* Indicador Visual de Stock (Semáforo: Verde #248F78 / Ámbar #E09F3E / Rojo #B42E46) */}
+                          <span
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9.5px] font-mono font-bold border shrink-0 ${
+                              isOutOfStock
+                                ? "bg-[#B42E46]/15 text-[#B42E46] border-[#B42E46]/35"
+                                : isLowStock
+                                ? "bg-[#E09F3E]/20 text-[#9A6310] border-[#E09F3E]/50"
+                                : "bg-[#248F78]/15 text-[#248F78] border-[#248F78]/35"
+                            }`}
+                            title={
+                              isOutOfStock
+                                ? "Producto agotado (0 unidades)"
+                                : isLowStock
+                                ? `Quedan pocas unidades (Stock mínimo: ${minStock})`
+                                : "Stock saludable"
+                            }
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                isOutOfStock
+                                  ? "bg-[#B42E46]"
+                                  : isLowStock
+                                  ? "bg-[#E09F3E] animate-pulse"
+                                  : "bg-[#248F78]"
+                              }`}
+                            />
+                            <span>
+                              {isOutOfStock
+                                ? "Agotado"
+                                : isLowStock
+                                ? `Bajo: ${p.stock_actual}`
+                                : `Stock: ${p.stock_actual}`}
+                            </span>
                           </span>
                         </div>
                       </button>
@@ -1796,9 +2045,33 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                               {p.nombre}
                             </td>
                             <td data-col="stock" className="py-2 px-3 text-center font-mono">
-                              <span className={p.stock_actual <= 0 ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>
-                                {p.stock_actual}
-                              </span>
+                              {(() => {
+                                const minStock = p.stock_minimo || 5;
+                                const isOut = p.stock_actual <= 0;
+                                const isLow = !isOut && p.stock_actual <= minStock;
+                                return (
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                      isOut
+                                        ? "bg-[#B42E46]/15 text-[#B42E46] border-[#B42E46]/35"
+                                        : isLow
+                                        ? "bg-[#E09F3E]/20 text-[#9A6310] border-[#E09F3E]/50"
+                                        : "bg-[#248F78]/15 text-[#248F78] border-[#248F78]/35"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full ${
+                                        isOut
+                                          ? "bg-[#B42E46]"
+                                          : isLow
+                                          ? "bg-[#E09F3E]"
+                                          : "bg-[#248F78]"
+                                      }`}
+                                    />
+                                    {isOut ? "Agotado (0)" : p.stock_actual}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td data-col="precio_usd" className="py-2 px-3 text-right font-mono font-extrabold text-amber-400">
                               ${p.precio_venta.toFixed(2)}
@@ -1835,27 +2108,81 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
           {/* Right: Viewport-Locked Sticky Mostrador Cart & Checkout Panel (~30%) */}
           <div className="min-w-0 lg:sticky lg:top-20 faraday-glass-cart rounded-2xl p-3.5 flex flex-col justify-between lg:h-[calc(100vh-145px)] lg:min-h-[480px]">
             <div className="flex flex-col flex-1 min-h-0">
-              <div className="flex items-center justify-between pb-2.5 border-b border-white/60 shrink-0">
-                <div className="flex items-center gap-2">
+              {/* Cuentas en Espera / Pestañas Flotantes Multi-Cliente */}
+              {pausedCarts.length > 0 && (
+                <div className="mb-2.5 pb-2 border-b border-white/60 shrink-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C646D] mb-1.5 flex items-center justify-between">
+                    <span>⏸ Cuentas en Espera ({pausedCarts.length})</span>
+                    <span className="text-[9.5px] font-normal">1 clic para retomar</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pausedCarts.map((paused) => {
+                      const totalPausedUsd = paused.items.reduce(
+                        (s, it) => s + it.subtotal,
+                        0
+                      );
+                      return (
+                        <div
+                          key={paused.id}
+                          onClick={() => handleResumePausedCart(paused.id)}
+                          className="group flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#E09F3E]/20 hover:bg-[#E09F3E]/35 border border-[#E09F3E]/55 text-[#222629] text-[11px] font-bold cursor-pointer transition-all shadow-xs"
+                          title={`Retomar cuenta de ${paused.label} (${paused.items.length} productos • $${totalPausedUsd.toFixed(2)} • Pausada a las ${paused.timestamp})`}
+                        >
+                          <PlayCircle className="w-3.5 h-3.5 text-[#9A6310] shrink-0" />
+                          <span>{paused.label}</span>
+                          <span className="font-mono text-[10px] text-[#9A6310] font-extrabold">
+                            (${totalPausedUsd.toFixed(2)})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDiscardPausedCart(paused.id, e)}
+                            className="ml-0.5 p-0.5 rounded hover:bg-[#B42E46]/20 text-[#5C646D] hover:text-[#B42E46] transition-colors"
+                            title={`Descartar cuenta de ${paused.label}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-1.5 pb-2.5 border-b border-white/60 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
                   <div className="w-7 h-7 rounded-full bg-[#7B61C9]/15 border border-[#7B61C9]/30 flex items-center justify-center shrink-0">
                     <ShoppingCart className="w-3.5 h-3.5 text-[#7B61C9]" />
                   </div>
-                  <span className="text-sm font-extrabold text-[#222629]">Canasta de Venta</span>
-                  <span className="text-xs text-[#5C646D] font-mono font-semibold">
-                    ({cart.reduce((s, i) => s + i.cantidad, 0)} arts)
+                  <span className="text-sm font-extrabold text-[#222629] truncate">Canasta</span>
+                  <span className="text-xs text-[#5C646D] font-mono font-semibold shrink-0">
+                    ({Number(cart.reduce((s, i) => s + i.cantidad, 0).toFixed(2))})
                   </span>
                 </div>
-                {cart.length > 0 && (
-                  <button
-                    id="btn-clear-cart"
-                    onClick={handleClearCart}
-                    className="text-[11px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer"
-                    title="Vaciar Canasta de Ventas (Alt + X)"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Vaciar</span>
-                  </button>
-                )}
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {cart.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handlePauseCurrentCart}
+                      className="px-2 py-1 rounded-lg bg-[#E09F3E]/25 hover:bg-[#E09F3E]/40 border border-[#E09F3E]/55 text-[#9A6310] text-[11px] font-extrabold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                      title="Pausar esta venta en una pestaña flotante para cobrarle al siguiente cliente de inmediato"
+                    >
+                      <PauseCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>⏸ Pausar Venta</span>
+                    </button>
+                  )}
+                  {cart.length > 0 && (
+                    <button
+                      id="btn-clear-cart"
+                      onClick={handleClearCart}
+                      className="px-1.5 py-1 rounded-lg hover:bg-rose-500/15 text-[11px] text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Vaciar Canasta de Ventas (Alt + X)"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span className="hidden sm:inline">Vaciar</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Cart Items List */}
@@ -1868,54 +2195,100 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     Haz clic en un producto o escanea un código para empezar a vender.
                   </div>
                 ) : (
-                  cart.map((item) => (
-                    <div
-                      key={item.producto.id}
-                      className="py-2.5 flex items-center justify-between gap-2"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-extrabold text-[#222629] truncate">
-                          {item.producto.nombre}
+                  cart.map((item) => {
+                    const isEditingThisQty = editingCartProductId === item.producto.id;
+                    return (
+                      <div
+                        key={item.producto.id}
+                        className="py-2.5 flex items-center justify-between gap-2"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-extrabold text-[#222629] truncate">
+                            {item.producto.nombre}
+                          </div>
+                          <div className="text-[10px] text-[#5C646D] font-mono">
+                            ${item.precio_unitario.toFixed(2)} c/u • Bs.{" "}
+                            {(item.precio_unitario * bcvRate).toFixed(2)}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-[#5C646D] font-mono">
-                          ${item.precio_unitario.toFixed(2)} c/u • Bs.{" "}
-                          {(item.precio_unitario * bcvRate).toFixed(2)}
-                        </div>
-                      </div>
 
-                      {/* Quantity Controls */}
-                      <div className="flex items-center gap-1.5 bg-white/60 p-1 rounded-lg border border-white/75">
-                        <button
-                          onClick={() =>
-                            handleUpdateCartQuantity(item.producto.id, -1)
-                          }
-                          className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#E09F3E] text-[#222629] font-bold text-xs transition-colors cursor-pointer"
-                        >
-                          -
-                        </button>
-                        <span className="w-6 text-center text-xs font-mono font-bold text-[#222629]">
-                          {item.cantidad}
-                        </span>
-                        <button
-                          onClick={() =>
-                            handleUpdateCartQuantity(item.producto.id, 1)
-                          }
-                          className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#E09F3E] text-[#222629] font-bold text-xs transition-colors cursor-pointer"
-                        >
-                          +
-                        </button>
-                      </div>
+                        {/* Quantity Controls + Direct Click-to-Edit for Pesables (Kg / Gramos) & Multi-units */}
+                        <div className="flex items-center gap-1 bg-white/60 p-1 rounded-lg border border-white/75">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateCartQuantity(item.producto.id, -1)
+                            }
+                            className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#E09F3E] text-[#222629] font-bold text-xs transition-colors cursor-pointer"
+                            title="Restar 1"
+                          >
+                            -
+                          </button>
 
-                      <div className="text-right font-mono min-w-[70px]">
-                        <div className="text-xs font-extrabold text-[#9A6310]">
-                          ${item.subtotal.toFixed(2)}
+                          {isEditingThisQty ? (
+                            <input
+                              type="number"
+                              step="any"
+                              min="0.001"
+                              value={editingCartQtyValue}
+                              onChange={(e) => setEditingCartQtyValue(e.target.value)}
+                              onBlur={() =>
+                                handleCommitDirectCartQuantity(
+                                  item.producto.id,
+                                  editingCartQtyValue
+                                )
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleCommitDirectCartQuantity(
+                                    item.producto.id,
+                                    editingCartQtyValue
+                                  );
+                                } else if (e.key === "Escape") {
+                                  setEditingCartProductId(null);
+                                }
+                              }}
+                              autoFocus
+                              className="w-14 text-center text-xs font-mono font-extrabold text-[#222629] bg-white border border-[#E09F3E] rounded px-1 py-0.5 focus:outline-none"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCartProductId(item.producto.id);
+                                setEditingCartQtyValue(String(item.cantidad));
+                              }}
+                              className="min-w-[32px] px-1 py-0.5 rounded hover:bg-[#E09F3E]/25 text-center text-xs font-mono font-extrabold text-[#222629] border border-transparent hover:border-[#E09F3E]/50 transition-all cursor-text"
+                              title="Clic para escribir cantidad exacta o peso en Kg (ej: 2.5 o 12)"
+                            >
+                              {item.cantidad}
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateCartQuantity(item.producto.id, 1)
+                            }
+                            className="w-5 h-5 rounded flex items-center justify-center bg-[#EEE8DB] hover:bg-[#E09F3E] text-[#222629] font-bold text-xs transition-colors cursor-pointer"
+                            title="Sumar 1"
+                          >
+                            +
+                          </button>
                         </div>
-                        <div className="text-[10px] text-[#5C646D] font-medium">
-                          Bs. {(item.subtotal * bcvRate).toFixed(2)}
+
+                        <div className="text-right font-mono min-w-[70px]">
+                          <div className="text-xs font-extrabold text-[#9A6310]">
+                            ${item.subtotal.toFixed(2)}
+                          </div>
+                          <div className="text-[10px] text-[#5C646D] font-medium">
+                            Bs. {(item.subtotal * bcvRate).toFixed(2)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1949,13 +2322,14 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                   type="button"
                   id="btn-open-avance-modal"
                   onClick={() => setIsAvanceModalOpen(true)}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#248F78]/15 hover:bg-[#248F78]/25 border border-[#248F78]/40 text-[#248F78] font-bold text-xs flex items-center justify-between transition-all cursor-pointer shadow-sm"
+                  title="Dar Avance de Efectivo (Cobro por Punto de Venta)"
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#248F78]/15 hover:bg-[#248F78]/25 border border-[#248F78]/40 text-[#248F78] font-bold text-xs flex items-center justify-between gap-2 transition-all cursor-pointer shadow-sm"
                 >
-                  <span className="flex items-center gap-2">
-                    <Banknote className="w-4 h-4 text-[#248F78]" />
-                    <span>💸 Dar Avance de Efectivo (Cobro por Punto)</span>
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Banknote className="w-4 h-4 text-[#248F78] shrink-0" />
+                    <span className="truncate">Dar Avance de Efectivo</span>
                   </span>
-                  <span className="px-2 py-0.5 rounded-lg bg-[#248F78] text-white faraday-keep-white font-mono text-[11px] font-extrabold">
+                  <span className="px-2 py-0.5 rounded-lg bg-[#248F78] text-white faraday-keep-white font-mono text-[11px] font-extrabold whitespace-nowrap shrink-0">
                     +{avancePorcentaje}% Ganancia
                   </span>
                 </button>
@@ -2176,15 +2550,6 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleSendWhatsAppDebtReminder(f)}
-                        disabled={f.saldo_deuda_usd <= 0}
-                        className="p-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-800/80 disabled:opacity-30 text-emerald-400 hover:text-emerald-200 border border-emerald-600/50 transition-colors shadow cursor-pointer flex items-center justify-center shrink-0"
-                        title={`Cobranza Rápida por WhatsApp a ${f.nombre} ($${f.saldo_deuda_usd.toFixed(2)})`}
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => {
                           setSelectedFiadoDetail(f);
                           setIsAbonoJustCompleted(false);
@@ -2324,15 +2689,6 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                               className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white text-[11px] font-bold cursor-pointer"
                             >
                               Abonar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSendWhatsAppDebtReminder(f)}
-                              disabled={f.saldo_deuda_usd <= 0}
-                              className="p-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-800/80 disabled:opacity-30 text-emerald-400 border border-emerald-600/50 cursor-pointer"
-                              title="Cobrar por WhatsApp"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" />
                             </button>
                             <button
                               type="button"
@@ -3329,84 +3685,184 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     />
                   </div>
 
-                  {/* Quick bill buttons ($1, $5, $10, $20, $50, $100 or Exact) */}
+                  {/* Quick bill buttons ($1, $5, $10, $20, $50, $100, Exacto) */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
                     <button
                       type="button"
                       onClick={() => setCashGivenUsd(effectiveTotalUsd)}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-mono font-semibold text-slate-300"
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                        cashGivenUsd === effectiveTotalUsd
+                          ? "bg-[#E09F3E] text-[#222629] font-black shadow"
+                          : "bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      }`}
                     >
                       Exacto (${effectiveTotalUsd.toFixed(2)})
                     </button>
-                    {[1, 2, 3, 5, 10, 20, 50, 100]
-                      .filter((bill) => bill >= Math.floor(effectiveTotalUsd))
-                      .slice(0, 6)
-                      .map((bill) => (
-                        <button
-                          key={bill}
-                          type="button"
-                          onClick={() => setCashGivenUsd(bill)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition-all ${
-                            cashGivenUsd === bill
-                              ? "bg-amber-500 text-slate-950 font-black shadow"
-                              : "bg-[#1d2028] text-amber-300 hover:bg-slate-700 border border-amber-500/20"
-                          }`}
-                        >
-                          ${bill}
-                        </button>
-                      ))}
+                    {[1, 5, 10, 20, 50, 100].map((bill) => (
+                      <button
+                        key={bill}
+                        type="button"
+                        onClick={() => setCashGivenUsd(bill)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
+                          cashGivenUsd === bill
+                            ? "bg-[#E09F3E] text-[#222629] font-black shadow"
+                            : "bg-[#1d2028] text-amber-300 hover:bg-slate-700 border border-amber-500/20"
+                        }`}
+                      >
+                        ${bill}
+                      </button>
+                    ))}
                   </div>
 
-                  {/* Vuelto a devolver en Bs y en USD */}
+                  {/* Vuelto a devolver en Bs y en USD + Calculadora Rápida de Vuelto Mixto */}
                   {typeof cashGivenUsd === "number" && (
                     <>
                       {cashGivenUsd >= effectiveTotalUsd ? (
-                        <div className="mt-3 p-3 bg-gradient-to-br from-emerald-950/60 to-emerald-900/30 border border-emerald-500/50 rounded-xl space-y-2">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-emerald-300 font-bold flex items-center gap-1">
-                              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                              VUELTO A ENTREGAR AL CLIENTE:
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
-                              Calculado a Tasa BCV
-                            </span>
-                          </div>
+                        (() => {
+                          const totalChangeUsd = Number(
+                            (cashGivenUsd - effectiveTotalUsd).toFixed(2)
+                          );
+                          const totalChangeVes = Number(
+                            (totalChangeUsd * bcvRate).toFixed(2)
+                          );
+                          const deliveredUsd =
+                            typeof vueltoMixtoUsdDelivered === "number" &&
+                            !isNaN(vueltoMixtoUsdDelivered)
+                              ? Math.max(
+                                  0,
+                                  Math.min(totalChangeUsd, vueltoMixtoUsdDelivered)
+                                )
+                              : 0;
+                          const remainingChangeUsd = Number(
+                            Math.max(0, totalChangeUsd - deliveredUsd).toFixed(2)
+                          );
+                          const remainingChangeVes = Number(
+                            (remainingChangeUsd * bcvRate).toFixed(2)
+                          );
+                          const quickChangeBills = [0, 1, 2, 5, 10, 20, 50].filter(
+                            (b) => b <= Math.floor(totalChangeUsd)
+                          );
 
-                          {/* Big Change in Bolivares (Bs.) box */}
-                          <div className="bg-[#0b1b13] p-3 rounded-lg border border-emerald-500/40 flex items-center justify-between">
-                            <div>
-                              <div className="text-[10px] text-emerald-400 font-medium">
-                                DEVOLVER EN BOLÍVARES (Bs.):
+                          return (
+                            <div className="mt-3 p-3 bg-gradient-to-br from-emerald-950/60 to-emerald-900/30 border border-emerald-500/50 rounded-xl space-y-2.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-emerald-300 font-bold flex items-center gap-1">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  VUELTO A ENTREGAR AL CLIENTE:
+                                </span>
+                                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                                  Tasa BCV: Bs. {bcvRate.toFixed(2)}
+                                </span>
                               </div>
-                              <div className="text-xl font-black text-white font-mono tracking-tight">
-                                Bs.{" "}
-                                {((cashGivenUsd - effectiveTotalUsd) * bcvRate).toLocaleString(
-                                  "es-VE",
-                                  {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  }
-                                )}
+
+                              {/* Big Change in Dollars & Bolivares (Bs.) box */}
+                              <div className="bg-[#0b1b13] p-3 rounded-lg border border-emerald-500/40 flex items-center justify-between">
+                                <div>
+                                  <div className="text-[10px] text-emerald-400 font-medium">
+                                    VUELTO TOTAL EN DÓLARES ($):
+                                  </div>
+                                  <div className="text-lg font-black text-emerald-300 font-mono">
+                                    ${totalChangeUsd.toFixed(2)} USD
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-[10px] text-slate-400 font-medium">
+                                    EQUIVALENTE EXACTO EN BOLÍVARES:
+                                  </div>
+                                  <div className="text-xl font-black text-white font-mono tracking-tight">
+                                    Bs.{" "}
+                                    {totalChangeVes.toLocaleString("es-VE", {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Calculadora Rápida de Vuelto Mixto (USD + Bs. / Pago Móvil) */}
+                              {totalChangeUsd > 0 && (
+                                <div className="p-2.5 rounded-xl bg-black/25 border border-emerald-500/30 space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[11px] font-bold text-amber-300">
+                                      🧮 Calculadora de Vuelto Mixto ($ + Bs. / Pago Móvil):
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">
+                                      ¿Cuántos $ entregas en billete?
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    {quickChangeBills.map((b) => (
+                                      <button
+                                        key={`chg-bill-${b}`}
+                                        type="button"
+                                        onClick={() => setVueltoMixtoUsdDelivered(b)}
+                                        className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                                          deliveredUsd === b
+                                            ? "bg-[#E09F3E] text-[#222629] font-extrabold shadow"
+                                            : "bg-slate-800/80 text-slate-300 hover:bg-slate-700"
+                                        }`}
+                                      >
+                                        {b === 0 ? "$0 (Todo en Bs.)" : `$${b} USD`}
+                                      </button>
+                                    ))}
+                                    <div className="flex items-center gap-1 ml-auto">
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        Otro $:
+                                      </span>
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        min="0"
+                                        max={totalChangeUsd}
+                                        value={vueltoMixtoUsdDelivered}
+                                        onChange={(e) =>
+                                          setVueltoMixtoUsdDelivered(
+                                            e.target.value === ""
+                                              ? ""
+                                              : parseFloat(e.target.value)
+                                          )
+                                        }
+                                        className="w-16 bg-[#0e1017] border border-slate-700 rounded-lg px-2 py-0.5 text-xs font-mono font-bold text-white text-right focus:border-amber-400 focus:outline-none"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2 pt-1">
+                                    <div className="p-2 rounded-lg bg-[#0e131f] border border-amber-500/30">
+                                      <div className="text-[9.5px] text-amber-300 font-semibold">
+                                        1. Entregar en Efectivo ($):
+                                      </div>
+                                      <div className="text-sm font-black font-mono text-white">
+                                        ${deliveredUsd.toFixed(2)} USD
+                                      </div>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-[#0b1b13] border border-emerald-500/40">
+                                      <div className="text-[9.5px] text-emerald-300 font-semibold">
+                                        2. Completar en Bs. / Pago Móvil:
+                                      </div>
+                                      <div className="text-sm font-black font-mono text-emerald-300">
+                                        Bs.{" "}
+                                        {remainingChangeVes.toLocaleString("es-VE", {
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Clear breakdown legend */}
+                              <div className="text-[10px] text-emerald-200/90 font-mono pt-0.5">
+                                Desglose: Entregó ${cashGivenUsd.toFixed(2)} - Total $
+                                {effectiveTotalUsd.toFixed(2)} = $
+                                {totalChangeUsd.toFixed(2)} USD × Bs.{" "}
+                                {bcvRate.toFixed(2)}
                               </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-[10px] text-slate-400 font-medium">
-                                O en Dólares ($):
-                              </div>
-                              <div className="text-sm font-bold text-emerald-300 font-mono">
-                                ${(cashGivenUsd - effectiveTotalUsd).toFixed(2)} USD
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Clear breakdown legend */}
-                          <div className="text-[10px] text-emerald-200/90 font-mono pt-0.5">
-                            Desglose: Entregó ${cashGivenUsd.toFixed(2)} - Total $
-                            {effectiveTotalUsd.toFixed(2)} = $
-                            {(cashGivenUsd - effectiveTotalUsd).toFixed(2)} USD × Bs.{" "}
-                            {bcvRate.toFixed(2)}
-                          </div>
-                        </div>
+                          );
+                        })()
                       ) : cashGivenUsd > 0 ? (
                         <div className="p-3 bg-gradient-to-br from-amber-950/60 to-blue-950/40 border border-amber-500/50 rounded-xl space-y-1.5">
                           <div className="flex items-center justify-between text-xs font-bold text-amber-300">
@@ -3837,14 +4293,14 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
               <button
                 type="button"
                 onClick={() => setCompletedSaleTicket(null)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold"
+                className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
               >
                 Cerrar
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1 shadow"
+                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1 shadow cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Imprimir Ticket</span>
@@ -4229,16 +4685,6 @@ export const BodegaEditionView: React.FC<BodegaEditionViewProps> = React.memo(({
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleSendWhatsAppDebtReminder(selectedFiadoDetail)}
-                      disabled={selectedFiadoDetail.saldo_deuda_usd <= 0}
-                      className="px-3.5 py-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-800/80 disabled:opacity-30 text-emerald-300 border border-emerald-600/60 text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer transition-colors"
-                      title="Enviar recordatorio de cobranza por WhatsApp"
-                    >
-                      <MessageCircle className="w-4 h-4 text-emerald-400" />
-                      <span>Cobrar por WhatsApp</span>
-                    </button>
                     <button
                       type="button"
                       onClick={() => {

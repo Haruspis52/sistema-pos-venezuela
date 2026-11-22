@@ -32,6 +32,9 @@ import {
   GitBranch,
   Power,
   CheckCircle2,
+  Volume2,
+  VolumeX,
+  Command,
 } from "lucide-react";
 import { PosOperationalMode, SystemUser } from "../types";
 
@@ -64,6 +67,9 @@ interface HeaderProps {
   onOpenKeyboardShortcuts?: () => void;
   onOpenLogsModal?: () => void;
   onOpenUpdateModal?: () => void;
+  soundEnabled?: boolean;
+  onToggleSound?: () => void;
+  onOpenCommandPalette?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -95,6 +101,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenKeyboardShortcuts,
   onOpenLogsModal,
   onOpenUpdateModal,
+  soundEnabled = true,
+  onToggleSound,
+  onOpenCommandPalette,
 }) => {
   const [isEditingBcv, setIsEditingBcv] = useState(false);
   const [tempBcvRate, setTempBcvRate] = useState(bcvRate.toString());
@@ -407,6 +416,46 @@ export const Header: React.FC<HeaderProps> = ({
               }`}>
                 {currentUser?.rol || "CAJA"}
               </span>
+            </button>
+          )}
+
+          {/* Paleta de Comandos Rápidos (Ctrl+K o F2) */}
+          {onOpenCommandPalette && (
+            <button
+              type="button"
+              onClick={onOpenCommandPalette}
+              title="Paleta de Comandos Rápidos (Ctrl + K o F2): buscar productos, vecinos, tasa o acciones"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-white/65 bg-white/55 hover:bg-white/80 text-[#222629] transition-all cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Command className="w-3.5 h-3.5 text-[#9A6310] shrink-0" />
+              <span className="hidden xl:inline">Comandos</span>
+              <span className="text-[9.5px] font-mono font-bold px-1 py-0.2 rounded bg-black/5 text-[#5C646D] border border-black/10">
+                F2
+              </span>
+            </button>
+          )}
+
+          {/* Interruptor 1 Clic: Sonidos Sutiles de Confirmación (Feedback Auditivo) */}
+          {onToggleSound && (
+            <button
+              type="button"
+              onClick={onToggleSound}
+              title={
+                soundEnabled
+                  ? "Sonidos de confirmación ACTIVADOS (Beep de escaneo, alerta de stock y timbre de caja). Clic para silenciar."
+                  : "Sonidos de confirmación SILENCIADOS. Clic para activar."
+              }
+              className={`flex items-center justify-center p-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer shrink-0 ${
+                soundEnabled
+                  ? "bg-[#248F78]/15 text-[#248F78] border-[#248F78]/35 hover:bg-[#248F78]/25"
+                  : "bg-white/50 text-[#5C646D] border-white/60 hover:bg-white/75"
+              }`}
+            >
+              {soundEnabled ? (
+                <Volume2 className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <VolumeX className="w-3.5 h-3.5 shrink-0" />
+              )}
             </button>
           )}
 
